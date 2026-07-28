@@ -153,12 +153,16 @@ fun ExportBackupScreen() {
 
             OutlinedButton(
                 onClick = {
-                    // Share data via Android share intent
-                    val exportFile = exportDataToFile(context, "JSON")
-                    if (exportFile != null) {
-                        shareFile(context, exportFile)
-                    } else {
-                        Toast.makeText(context, "Export first before sharing", Toast.LENGTH_SHORT).show()
+                    coroutineScope.launch {
+                        // Share data via Android share intent
+                        val exportFile = withContext(Dispatchers.IO) {
+                            exportDataToFile(context, "JSON")
+                        }
+                        if (exportFile != null) {
+                            shareFile(context, exportFile)
+                        } else {
+                            Toast.makeText(context, "Export first before sharing", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -227,12 +231,10 @@ private suspend fun generateJsonExport(database: AndrometryDatabase): String {
     val events = database.eventDao().getEventsInRange("1970-01-01", "2099-12-31", 10000)
     val segments = database.segmentDao().getSegmentsInRange("1970-01-01", "2099-12-31", 10000)
     val habits = database.habitDao().getAll()
-    val baselines = database.baselineDao().getByName("focus_time") // Example baseline
     val goals = database.goalDao().getActive()
     val outcomes = database.outcomeDao().getRecent(500)
     val observations = database.observationDao().getRecent(500)
     val interventions = database.interventionDao().getAll(500)
-    val feedback = database.feedbackDao().getForTarget("", "") // All feedback
 
     return """
     {
