@@ -8,19 +8,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.andrometry.core.config.SensitiveModeManager
+import kotlinx.coroutines.launch
 
 /**
  * Privacy Screen — §6.4.7
  *
  * Shows sensitive mode toggle, redaction settings, and data wipe controls.
+ * Uses SensitiveModeManager via Hilt DI for persistent state.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PrivacyScreen() {
-    var sensitiveModeEnabled by remember { mutableStateOf(false) }
-    var redactLocation by remember { mutableStateOf(false) }
-    var redactAppNames by remember { mutableStateOf(false) }
-    var redactCalendar by remember { mutableStateOf(true) }
+fun PrivacyScreen(
+    sensitiveModeManager: SensitiveModeManager
+) {
+    val scope = rememberCoroutineScope()
+    val isSensitiveMode by sensitiveModeManager.isSensitiveModeActive.collectAsState(initial = false)
+    val redactLoc by sensitiveModeManager.redactLocation.collectAsState(initial = false)
+    val redactApp by sensitiveModeManager.redactAppUsage.collectAsState(initial = false)
+    val redactCal by sensitiveModeManager.redactCalendar.collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -62,8 +68,13 @@ fun PrivacyScreen() {
                             )
                         }
                         Switch(
-                            checked = sensitiveModeEnabled,
-                            onCheckedChange = { sensitiveModeEnabled = it }
+                            checked = isSensitiveMode,
+                            onCheckedChange = { enabled ->
+                                scope.launch {
+                                    if (enabled) sensitiveModeManager.enableSensitiveMode()
+                                    else sensitiveModeManager.disableSensitiveMode()
+                                }
+                            }
                         )
                     }
                 }
@@ -82,22 +93,28 @@ fun PrivacyScreen() {
                     RedactionToggle(
                         label = "Redact Location",
                         description = "Replace exact coordinates with semantic places",
-                        checked = redactLocation,
-                        onCheckedChange = { redactLocation = it }
+                        checked = redactLoc,
+                        onCheckedChange = { enabled ->
+                            scope.launch { sensitiveModeManager.setRedactLocation(enabled) }
+                        }
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     RedactionToggle(
                         label = "Redact App Names",
                         description = "Show categories instead of specific app names",
-                        checked = redactAppNames,
-                        onCheckedChange = { redactAppNames = it }
+                        checked = redactApp,
+                        onCheckedChange = { enabled ->
+                            scope.launch { sensitiveModeManager.setRedactAppUsage(enabled) }
+                        }
                     )
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     RedactionToggle(
                         label = "Redact Calendar Titles",
                         description = "Hide meeting titles in context and summaries",
-                        checked = redactCalendar,
-                        onCheckedChange = { redactCalendar = it }
+                        checked = redactCal,
+                        onCheckedChange = { enabled ->
+                            scope.launch { sensitiveModeManager.setRedactCalendar(enabled) }
+                        }
                     )
                 }
             }

@@ -15,7 +15,10 @@ import com.google.android.gms.location.*
 import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,12 +61,23 @@ class LocationCollector @Inject constructor(
     private var lastLocation: Location? = null
     private var lastPlace: String = "unknown"
     private var lastPlaceEnteredMs: Long = 0L
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var cachedRedactLocation: Boolean = false
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private var geofencingClient: GeofencingClient? = null
     private var locationCallback: LocationCallback? = null
 
     fun start(context: Context) {
         if (!hasLocationPermission(context)) return
+
+        // Cache sensitive mode state; set initial value synchronously, refresh every 5 min
+        scope.launch {
+            cachedRedactLocation = sensitiveModeManager.shouldRedactLocation()
+            while (true) {
+                kotlinx.coroutines.delay(5 * 60 * 1000L)
+                cachedRedactLocation = sensitiveModeManager.shouldRedactLocation()
+            }
+        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         geofencingClient = LocationServices.getGeofencingClient(context)
@@ -77,6 +91,7 @@ class LocationCollector @Inject constructor(
      * Call this when the collector is no longer needed.
      */
     fun stop() {
+        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
         locationCallback?.let { callback ->
             fusedLocationClient?.removeLocationUpdates(callback)
             locationCallback = null
@@ -144,10 +159,11 @@ class LocationCollector @Inject constructor(
             changed = placeChanged
         )
 
-        // §33: Redact location when sensitive mode active
-        val redactLocation = runBlocking { sensitiveModeManager.shouldRedactLocation() }
+        // §33: Use cached redaction state (updated every 5 min on background thread)
+        val redactLocation = cachedRedactLocation
+        val displayPlace = if (redactLocation) "[redacted]" else locationContext.place
         val payload = mapOf(
-            "place" to if (redactLocation) "[redacted]" else locationContext.place,
+            "place" to displayPlace,
             "confidence" to locationContext.confidence,
             "movement" to locationContext.movement,
             "changed" to locationContext.changed
@@ -181,7 +197,7 @@ class LocationCollector @Inject constructor(
                 layer = "place",
                 startTime = enterTime,
                 endTime = now,
-                label = lastPlace,
+                label = if (cachedRedactLocation) "[redacted]" else lastPlace,
                 confidence = 0.88,
                 validFrom = enterTime,
                 ingestedAt = now,

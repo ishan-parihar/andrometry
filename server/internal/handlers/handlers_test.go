@@ -606,9 +606,204 @@ func TestPostUserCorrection(t *testing.T) {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusCreated)
 	}
 
-	var resp map[string]string
+	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["status"] != "created" {
 		t.Errorf("status = %v, want created", resp["status"])
+	}
+	// segment_updated should be false since seg-999 doesn't exist
+	if resp["segment_updated"] != false {
+		t.Errorf("segment_updated = %v, want false for non-existent segment", resp["segment_updated"])
+	}
+}
+
+// --- Round-trip tests (insert then query back) ---
+
+func TestBaseline_roundTrip(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Insert baseline
+	baseline := map[string]interface{}{
+		"metric_name": "screen_time_minutes",
+		"window_days": 14,
+		"value":       180.0,
+	}
+	body, _ := json.Marshal(baseline)
+	req := httptest.NewRequest("POST", "/v1/baselines", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostBaseline(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post baseline status = %d, want %d", w.Code, http.StatusCreated)
+	}
+
+	var postResp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &postResp)
+	baselineID := postResp["baseline_id"]
+
+	// Query back
+	req2 := httptest.NewRequest("GET", "/v1/baselines", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetBaselines(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("get baselines status = %d, want %d", w2.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	baselines := resp["baselines"].([]interface{})
+	if len(baselines) != 1 {
+		t.Fatalf("baselines count = %d, want 1", len(baselines))
+	}
+
+	b := baselines[0].(map[string]interface{})
+	if b["baseline_id"] != baselineID {
+		t.Errorf("baseline_id = %v, want %v", b["baseline_id"], baselineID)
+	}
+	if b["metric_name"] != "screen_time_minutes" {
+		t.Errorf("metric_name = %v, want screen_time_minutes", b["metric_name"])
+	}
+	if b["value"] != 180.0 {
+		t.Errorf("value = %v, want 180.0", b["value"])
+	}
+
+	// Upsert same metric — should update, not duplicate
+	baseline2 := map[string]interface{}{
+		"metric_name": "screen_time_minutes",
+		"window_days": 7,
+		"value":       150.0,
+	}
+	body2, _ := json.Marshal(baseline2)
+	req3 := httptest.NewRequest("POST", "/v1/baselines", bytes.NewReader(body2))
+	req3.Header.Set("Content-Type", "application/json")
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.PostBaseline(w3, req3)
+
+	if w3.Code != http.StatusCreated {
+		t.Fatalf("upsert baseline status = %d, want %d", w3.Code, http.StatusCreated)
+	}
+
+	// Verify still only one baseline
+	req4 := httptest.NewRequest("GET", "/v1/baselines", nil)
+	req4 = req4.WithContext(withUserContext("primary"))
+	w4 := httptest.NewRecorder()
+	h.GetBaselines(w4, req4)
+
+	var resp2 map[string]interface{}
+	json.Unmarshal(w4.Body.Bytes(), &resp2)
+	baselines2 := resp2["baselines"].([]interface{})
+	if len(baselines2) != 1 {
+		t.Fatalf("baselines count after upsert = %d, want 1", len(baselines2))
+	}
+
+	b2 := baselines2[0].(map[string]interface{})
+	if b2["value"] != 150.0 {
+		t.Errorf("value after upsert = %v, want 150.0", b2["value"])
+	}
+
+	// Delete baseline
+	deleteReq := httptest.NewRequest("DELETE", "/v1/baselines/"+baselineID, nil)
+	deleteReq = deleteReq.WithContext(withUserContext("primary"))
+	w5 := httptest.NewRecorder()
+	h.DeleteBaseline(w5, deleteReq)
+
+	if w5.Code != http.StatusOK {
+		t.Errorf("delete baseline status = %d, want %d", w5.Code, http.StatusOK)
+	}
+
+	// Verify deleted
+	req5 := httptest.NewRequest("GET", "/v1/baselines", nil)
+	req5 = req5.WithContext(withUserContext("primary"))
+	w6 := httptest.NewRecorder()
+	h.GetBaselines(w6, req5)
+
+	var resp3 map[string]interface{}
+	json.Unmarshal(w6.Body.Bytes(), &resp3)
+	baselines3 := resp3["baselines"].([]interface{})
+	if len(baselines3) != 0 {
+		t.Errorf("baselines count after delete = %d, want 0", len(baselines3))
+	}
+}
+
+func TestFiveMinuteSummary_roundTrip(t *testing.T) {
+	h, db := setupTestHandler(t)
+
+	// Insert five-minute summary directly via store
+	err := db.UpsertFiveMinuteSummary(
+		"2026-01-01T10:00:00Z",
+		"2026-01-01T10:05:00Z",
+		`{"activity":"deep_work","minutes":5}`,
+	)
+	if err != nil {
+		t.Fatalf("upsert five_minute summary: %v", err)
+	}
+
+	// Query via API
+	req := httptest.NewRequest("GET", "/v1/summary/five_minute?from=2026-01-01T09:00:00Z&to=2026-01-01T11:00:00Z", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetFiveMinuteSummaries(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	summaries := resp["summaries"].([]interface{})
+	if len(summaries) != 1 {
+		t.Fatalf("summaries count = %d, want 1", len(summaries))
+	}
+
+	s := summaries[0].(map[string]interface{})
+	if s["start_time"] != "2026-01-01T10:00:00Z" {
+		t.Errorf("start_time = %v, want 2026-01-01T10:00:00Z", s["start_time"])
+	}
+	if s["summary"] != `{"activity":"deep_work","minutes":5}` {
+		t.Errorf("summary = %v, want correct JSON", s["summary"])
+	}
+}
+
+func TestHourlySummary_roundTrip(t *testing.T) {
+	h, db := setupTestHandler(t)
+
+	// Insert hourly summary directly via store
+	err := db.UpsertHourlySummary(
+		"2026-01-01T10:00:00Z",
+		"2026-01-01T11:00:00Z",
+		`{"focus_minutes":42,"meeting_minutes":15}`,
+	)
+	if err != nil {
+		t.Fatalf("upsert hourly summary: %v", err)
+	}
+
+	// Query via API
+	req := httptest.NewRequest("GET", "/v1/summary/hourly?from=2026-01-01T09:00:00Z&to=2026-01-01T12:00:00Z", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetHourlySummaries(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	summaries := resp["summaries"].([]interface{})
+	if len(summaries) != 1 {
+		t.Fatalf("summaries count = %d, want 1", len(summaries))
+	}
+
+	s := summaries[0].(map[string]interface{})
+	if s["start_time"] != "2026-01-01T10:00:00Z" {
+		t.Errorf("start_time = %v, want 2026-01-01T10:00:00Z", s["start_time"])
+	}
+	if s["summary"] != `{"focus_minutes":42,"meeting_minutes":15}` {
+		t.Errorf("summary = %v, want correct JSON", s["summary"])
 	}
 }

@@ -7,6 +7,8 @@ import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.collectors.usage.UsageCollector
 import com.andrometry.collectors.health.HealthCollector
+import com.andrometry.collectors.permissions.PermissionCollector
+
 import com.andrometry.inference.segments.SegmentEngine
 import com.andrometry.inference.context.ContextInferenceEngine
 import com.andrometry.inference.outcomes.OutcomeEngine
@@ -44,8 +46,9 @@ class CollectorScheduler @Inject constructor() {
         const val WORK_FIVE_MIN = "andrometry_collector_five_minute"
         const val WORK_HOURLY = "andrometry_collector_hourly"
         const val WORK_SEGMENT = "andrometry_collector_segment"
-        const val WORK_CONTEXT = "andrometry_collector_context"
-        const val WORK_OUTCOMES = "andrometry_collector_outcomes"    }
+        const val WORK_CONTEXT = "andrometry_collector_context"        const val WORK_OUTCOMES = "andrometry_collector_outcomes"
+        const val WORK_PERMISSIONS = "andrometry_collector_permissions"
+    }
 
     fun scheduleAll(context: Context) {
         scheduleUsageCollector(context)
@@ -53,8 +56,9 @@ class CollectorScheduler @Inject constructor() {
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
         scheduleSegmentation(context)
-        scheduleContextSnapshot(context)
-        scheduleOutcomeProcessing(context)    }
+        scheduleContextSnapshot(context)        scheduleOutcomeProcessing(context)
+        schedulePermissionCheck(context)
+    }
 
     /**
      * App usage: every 15 min (Tier 1 balanced)
@@ -179,15 +183,30 @@ class CollectorScheduler @Inject constructor() {
         val work = PeriodicWorkRequestBuilder<OutcomeProcessingWorker>(
             60, TimeUnit.MINUTES
         ).setConstraints(constraints)
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            .build()        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_OUTCOMES, ExistingPeriodicWorkPolicy.KEEP, work
         )
     }
 
+    /**
+     * Permission state check: every 15 min (§7.2)
+     */
+    private fun schedulePermissionCheck(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
 
-}
+        val work = PeriodicWorkRequestBuilder<PermissionCheckWorker>(
+            15, TimeUnit.MINUTES
+        ).setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            WORK_PERMISSIONS, ExistingPeriodicWorkPolicy.KEEP, work
+        )
+    }
+
+
 
 // ============================================================
 // HiltWorker implementations for each collector
@@ -360,5 +379,29 @@ class OutcomeProcessingWorker @AssistedInject constructor(
         }
     }
 }
+
+// ============================================================
+// Collector workers (§7 Permission, §9.7 Communication, §9.8 Focus)
+// ============================================================
+
+@HiltWorker
+class PermissionCheckWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val permissionCollector: PermissionCollector
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        return try {
+            permissionCollector.checkAndRecord(applicationContext)
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
+    }
+}
+
+@HiltWorker
+
 
 

@@ -20,6 +20,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.andrometry.ui.screens.*
 import com.andrometry.ui.theme.AndrometryTheme
+import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -34,11 +35,14 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var database: AndrometryDatabase
 
+    @Inject
+    lateinit var sensitiveModeManager: SensitiveModeManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AndrometryTheme {
-                AndrometryApp(database)
+                AndrometryApp(database, sensitiveModeManager)
             }
         }
     }
@@ -65,7 +69,7 @@ val bottomNavItems = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AndrometryApp(database: AndrometryDatabase) {
+fun AndrometryApp(database: AndrometryDatabase, sensitiveModeManager: SensitiveModeManager) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -154,7 +158,7 @@ fun AndrometryApp(database: AndrometryDatabase) {
             composable(Screen.Sync.route) { SyncStatusScreen() }
             composable(Screen.Timeline.route) { DebugTimelineScreen() }
             composable(Screen.Inbox.route) { InterventionInboxScreen() }
-            composable(Screen.Privacy.route) { PrivacyScreen() }
+            composable(Screen.Privacy.route) { PrivacyScreen(sensitiveModeManager) }
             composable(Screen.Export.route) { ExportBackupScreen(database) }
         }
     }

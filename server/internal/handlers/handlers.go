@@ -991,11 +991,11 @@ func (h *Handler) PostBaseline(w http.ResponseWriter, r *http.Request) {
 // DeleteBaseline handles DELETE /v1/baselines/:id.
 func (h *Handler) DeleteBaseline(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 {
+	if len(parts) < 4 {
 		respondError(w, http.StatusBadRequest, "missing baseline ID")
 		return
 	}
-	baselineID := parts[4]
+	baselineID := parts[3]
 	uid := userID(r)
 
 	if err := h.DB.DeleteBaseline(uid, baselineID); err != nil {
