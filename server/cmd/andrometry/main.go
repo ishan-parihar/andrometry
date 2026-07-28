@@ -114,6 +114,21 @@ func main() {
 	// SSE stream for real-time context updates (§21)
 	mux.Handle("GET /v1/stream", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.StreamContext))))
 
+	// Work Pattern Metrics (§39)
+	mux.Handle("GET /v1/metrics/work-patterns", auth(middleware.RequireScope("agent:summaries:read")(http.HandlerFunc(h.GetWorkPatternMetrics))))
+
+	// Readiness & Fatigue (§40)
+	mux.Handle("GET /v1/metrics/readiness", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetReadinessScore))))
+
+	// Collector Health (§23.5)
+	mux.Handle("GET /v1/health/collectors", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetCollectorStatus))))
+
+	// Goal Progress (§36)
+	mux.Handle("GET /v1/goals/{id}/progress", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.EvaluateGoalProgress))))
+
+	// Habit Evaluation (§38)
+	mux.Handle("GET /v1/habits/{id}/evaluation", auth(middleware.RequireScope("agent:habits:read")(http.HandlerFunc(h.EvaluateHabitCompletion))))
+
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
 	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))

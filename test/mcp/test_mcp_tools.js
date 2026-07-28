@@ -3,14 +3,13 @@
 /**
  * MCP Server Test Suite — §41 Testing and Simulation Harness
  *
- * Tests all 16 MCP tools for proper request/response handling,
+ * Tests all 42 MCP tools for proper request/response handling,
  * error cases, and data validation.
  *
  * Run: node test/mcp/test_mcp_tools.js
  */
 
 const assert = require("assert");
-const { execSync } = require("child_process");
 
 console.log("[test] Running MCP server tests...\n");
 
@@ -34,10 +33,10 @@ const mockResponses = {
         alignment_probability: 0.74,
         data_quality: {
           completeness: 0.87,
-          staleness_seconds: 42
-        }
-      }
-    }
+          staleness_seconds: 42,
+        },
+      },
+    },
   },
   "/v1/briefing/current": {
     status: 200,
@@ -49,13 +48,13 @@ const mockResponses = {
         place: "office",
         distraction_probability: 0.18,
         fatigue_probability: 0.31,
-        alignment_probability: 0.74
+        alignment_probability: 0.74,
       },
       trends: {},
       risks: [],
       opportunities: [],
-      suggested_queries: []
-    }
+      suggested_queries: [],
+    },
   },
   "/v1/timeline": {
     status: 200,
@@ -68,10 +67,10 @@ const mockResponses = {
           start_time: "2026-07-28T09:00:00Z",
           end_time: "2026-07-28T10:00:00Z",
           label: "deep_work",
-          confidence: 0.85
-        }
-      ]
-    }
+          confidence: 0.85,
+        },
+      ],
+    },
   },
   "/v1/summary/daily": {
     status: 200,
@@ -83,8 +82,8 @@ const mockResponses = {
       distraction_minutes: 64,
       sleep_minutes: 460,
       steps: 8123,
-      alignment_score: 0.74
-    }
+      alignment_score: 0.74,
+    },
   },
   "/v1/summary/weekly": {
     status: 200,
@@ -93,8 +92,32 @@ const mockResponses = {
       timezone: "Asia/Kolkata",
       deep_work_minutes: 1200,
       meeting_minutes: 450,
-      alignment_score: 0.72
-    }
+      alignment_score: 0.72,
+    },
+  },
+  "/v1/summary/five_minute": {
+    status: 200,
+    data: {
+      summaries: [
+        {
+          start_time: "2026-07-28T10:00:00Z",
+          end_time: "2026-07-28T10:05:00Z",
+          activity: "deep_work",
+        },
+      ],
+    },
+  },
+  "/v1/summary/hourly": {
+    status: 200,
+    data: {
+      summaries: [
+        {
+          start_time: "2026-07-28T10:00:00Z",
+          end_time: "2026-07-28T11:00:00Z",
+          activity: "deep_work",
+        },
+      ],
+    },
   },
   "/v1/events": {
     status: 200,
@@ -104,10 +127,35 @@ const mockResponses = {
           event_id: "evt-1",
           timestamp: "2026-07-28T10:00:00Z",
           event_type: "app_usage_summary",
-          payload: {}
-        }
-      ]
-    }
+          payload: {},
+        },
+      ],
+    },
+  },
+  "/v1/agent/observations": {
+    status: 201,
+    data: {
+      observation_id: "obs-1",
+    },
+  },
+  "/v1/agent/interventions": {
+    status: 201,
+    data: {
+      intervention_id: "int-1",
+      status: "approved_by_policy",
+    },
+  },
+  "/v1/feedback": {
+    status: 201,
+    data: {
+      feedback_id: "fb-1",
+    },
+  },
+  "/v1/outcomes": {
+    status: 201,
+    data: {
+      outcome_id: "out-1",
+    },
   },
   "/v1/goals": {
     status: 200,
@@ -117,19 +165,10 @@ const mockResponses = {
           goal_id: "goal-1",
           goal_type: "deep_work_minutes",
           title: "Deep work 2 hours daily",
-          status: "active"
-        }
-      ]
-    }
-  },
-  "/v1/goals:create": {
-    status: 201,
-    data: {
-      goal_id: "goal-new-1",
-      goal_type: "deep_work_minutes",
-      title: "Deep work 2 hours daily",
-      status: "active"
-    }
+          status: "active",
+        },
+      ],
+    },
   },
   "/v1/habits": {
     status: 200,
@@ -140,46 +179,39 @@ const mockResponses = {
           habit_type: "morning_routine",
           title: "Wake before 7am",
           streak_days: 5,
-          habit_strength: 0.72
-        }
-      ]
-    }
+          habit_strength: 0.72,
+        },
+      ],
+    },
   },
-  "/v1/habits:create": {
-    status: 201,
+  "/v1/baselines": {
+    status: 200,
     data: {
-      habit_id: "habit-new-1",
-      habit_type: "morning_routine",
-      title: "Wake before 7am",
-      streak_days: 0,
-      habit_strength: 0.0
-    }
+      baselines: [
+        {
+          baseline_id: "bl-1",
+          metric_name: "deep_work_minutes_daily",
+          value: 120,
+        },
+      ],
+    },
   },
-  "/v1/agent/observations": {
-    status: 201,
+  "/v1/corrections": {
+    status: 200,
     data: {
-      observation_id: "obs-1"
-    }
+      corrections: [],
+    },
   },
-  "/v1/agent/interventions": {
-    status: 201,
-    data: {
-      intervention_id: "int-1",
-      status: "approved_by_policy"
-    }
-  },
-  "/v1/feedback": {
-    status: 201,
-    data: {
-      feedback_id: "fb-1"
-    }
-  },
-  "/v1/health": {
+  "/v1/health/detailed": {
     status: 200,
     data: {
       status: "ok",
-      server: "andrometry-relay"
-    }
+      server: "andrometry-relay",
+      db_stats: {
+        events: 1000,
+        segments: 500,
+      },
+    },
   },
   "/v1/privacy/sensitive-mode": {
     status: 200,
@@ -188,23 +220,47 @@ const mockResponses = {
       pause_sync: true,
       redact_location: true,
       redact_app_usage: true,
-      redact_calendar: true
-    }
+      redact_calendar: true,
+    },
   },
   "/v1/audit": {
     status: 200,
     data: {
-      audit_log: []
-    }
-  }
+      audit_log: [],
+    },
+  },
+  "/v1/metrics/work-patterns": {
+    status: 200,
+    data: {
+      total_focus_minutes: 180,
+      context_switching_rate_per_hour: 2.5,
+    },
+  },
+  "/v1/metrics/readiness": {
+    status: 200,
+    data: {
+      readiness_score: 0.75,
+      fatigue_probability: 0.25,
+    },
+  },
+  "/v1/health/collectors": {
+    status: 200,
+    data: {
+      collectors: [
+        { name: "screen", status: "healthy", staleness_seconds: 10 },
+        { name: "location", status: "healthy", staleness_seconds: 30 },
+      ],
+      staleness_seconds: 30,
+    },
+  },
 };
 
-// Define all 38 MCP tools and their expected behavior
+// Define all 42 MCP tools and their expected behavior
 const mcpTools = [
-  // Context & Briefing
+  // Context & Briefing (2)
   {
     name: "get_current_context",
-    description: "Get user's current context",
+    description: "Get the user's current context",
     endpoint: "/v1/context/current",
     method: "GET",
     requiredFields: ["context"],
@@ -212,7 +268,7 @@ const mcpTools = [
       assert(data.context, "Response must have context");
       assert(typeof data.context.primary_activity === "string", "Must have primary_activity");
       assert(typeof data.context.distraction_probability === "number", "Must have distraction_probability");
-    }
+    },
   },
   {
     name: "get_current_briefing",
@@ -224,9 +280,9 @@ const mcpTools = [
       assert(data.briefing_id, "Must have briefing_id");
       assert(data.state, "Must have state");
       assert(typeof data.state.primary_activity === "string", "State must have primary_activity");
-    }
+    },
   },
-  // Timeline
+  // Timeline (4)
   {
     name: "get_timeline",
     description: "Get timeline segments",
@@ -235,9 +291,39 @@ const mcpTools = [
     requiredFields: ["timeline"],
     validates: (data) => {
       assert(Array.isArray(data.timeline), "Must have timeline array");
-    }
+    },
   },
-  // Summaries
+  {
+    name: "get_focus_sessions",
+    description: "Get today's focus sessions from the timeline",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => {
+      assert(Array.isArray(data.timeline), "Must have timeline array");
+    },
+  },
+  {
+    name: "get_place_visits",
+    description: "Get place visit segments",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => {
+      assert(Array.isArray(data.timeline), "Must have timeline array");
+    },
+  },
+  {
+    name: "get_distraction_segments",
+    description: "Get distraction segments to understand when focus was broken",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => {
+      assert(Array.isArray(data.timeline), "Must have timeline array");
+    },
+  },
+  // Summaries (4)
   {
     name: "get_daily_summary",
     description: "Get daily summary",
@@ -246,7 +332,7 @@ const mcpTools = [
     requiredFields: ["date"],
     validates: (data) => {
       assert(data.date, "Must have date");
-    }
+    },
   },
   {
     name: "get_weekly_summary",
@@ -256,7 +342,7 @@ const mcpTools = [
     requiredFields: ["week"],
     validates: (data) => {
       assert(data.week, "Must have week");
-    }
+    },
   },
   {
     name: "get_five_minute_summaries",
@@ -266,7 +352,7 @@ const mcpTools = [
     requiredFields: ["summaries"],
     validates: (data) => {
       assert(Array.isArray(data.summaries), "Must have summaries array");
-    }
+    },
   },
   {
     name: "get_hourly_summaries",
@@ -276,29 +362,29 @@ const mcpTools = [
     requiredFields: ["summaries"],
     validates: (data) => {
       assert(Array.isArray(data.summaries), "Must have summaries array");
-    }
+    },
   },
-  // Events
+  // Events (1)
   {
-    name: "get_events",
-    description: "Get raw events",
+    name: "search_events",
+    description: "Search raw events by type and time range",
     endpoint: "/v1/events",
     method: "GET",
     requiredFields: ["events"],
     validates: (data) => {
       assert(Array.isArray(data.events), "Must have events array");
-    }
+    },
   },
-  // Agent Loop — Write
+  // Agent Loop — Read/Write (4)
   {
-    name: "write_observation",
-    description: "Write agent observation",
+    name: "add_agent_observation",
+    description: "Write an observation about user behavior",
     endpoint: "/v1/agent/observations",
     method: "POST",
     requiredFields: ["observation_id"],
     validates: (data) => {
       assert(data.observation_id, "Must return observation_id");
-    }
+    },
   },
   {
     name: "get_agent_observations",
@@ -308,7 +394,7 @@ const mcpTools = [
     requiredFields: ["observations"],
     validates: (data) => {
       assert(Array.isArray(data.observations), "Must have observations array");
-    }
+    },
   },
   {
     name: "propose_intervention",
@@ -318,27 +404,29 @@ const mcpTools = [
     requiredFields: ["intervention_id", "status"],
     validates: (data) => {
       assert(data.intervention_id, "Must return intervention_id");
-    }
+    },
   },
   {
+    name: "update_intervention_status",
+    description: "Update intervention status",
+    endpoint: "/v1/agent/interventions/int-test",
+    method: "PATCH",
+    requiredFields: ["intervention_id", "status"],
+    validates: (data) => {
+      assert(data.intervention_id, "Must have intervention_id");
+      assert(data.status, "Must have status");
+    },
+  },
+  // Feedback (2)
+  {
     name: "submit_feedback",
-    description: "Submit user feedback",
+    description: "Submit user feedback about an intervention or observation",
     endpoint: "/v1/feedback",
     method: "POST",
     requiredFields: ["feedback_id"],
     validates: (data) => {
       assert(data.feedback_id, "Must return feedback_id");
-    }
-  },
-  {
-    name: "submit_feedback",
-    description: "Submit user feedback",
-    endpoint: "/v1/feedback",
-    method: "POST",
-    requiredFields: ["feedback_id"],
-    validates: (data) => {
-      assert(data.feedback_id, "Must return feedback_id");
-    }
+    },
   },
   {
     name: "get_feedback",
@@ -348,8 +436,9 @@ const mcpTools = [
     requiredFields: ["feedback"],
     validates: (data) => {
       assert(Array.isArray(data.feedback), "Must have feedback array");
-    }
+    },
   },
+  // Outcomes (2)
   {
     name: "record_outcome",
     description: "Record intervention outcome",
@@ -358,7 +447,7 @@ const mcpTools = [
     requiredFields: ["outcome_id"],
     validates: (data) => {
       assert(data.outcome_id, "Must return outcome_id");
-    }
+    },
   },
   {
     name: "get_intervention_outcomes",
@@ -368,19 +457,9 @@ const mcpTools = [
     requiredFields: ["outcomes"],
     validates: (data) => {
       assert(Array.isArray(data.outcomes), "Must have outcomes array");
-    }
+    },
   },
-  // Goals
-  {
-    name: "create_goal",
-    description: "Create goal",
-    endpoint: "/v1/goals:create",
-    method: "POST",
-    requiredFields: ["goal_id"],
-    validates: (data) => {
-      assert(data.goal_id, "Must return goal_id");
-    }
-  },
+  // Goals (4)
   {
     name: "get_goals",
     description: "Get tracked goals",
@@ -389,7 +468,17 @@ const mcpTools = [
     requiredFields: ["goals"],
     validates: (data) => {
       assert(Array.isArray(data.goals), "Must have goals array");
-    }
+    },
+  },
+  {
+    name: "create_goal",
+    description: "Create a new goal",
+    endpoint: "/v1/goals",
+    method: "POST",
+    requiredFields: ["goal_id"],
+    validates: (data) => {
+      assert(data.goal_id, "Must return goal_id");
+    },
   },
   {
     name: "update_goal",
@@ -399,7 +488,7 @@ const mcpTools = [
     requiredFields: ["goal_id"],
     validates: (data) => {
       assert(data.goal_id, "Must return goal_id");
-    }
+    },
   },
   {
     name: "delete_goal",
@@ -409,19 +498,9 @@ const mcpTools = [
     requiredFields: ["goal_id"],
     validates: (data) => {
       assert(data.goal_id, "Must return goal_id");
-    }
+    },
   },
-  // Habits
-  {
-    name: "create_habit",
-    description: "Create habit",
-    endpoint: "/v1/habits:create",
-    method: "POST",
-    requiredFields: ["habit_id"],
-    validates: (data) => {
-      assert(data.habit_id, "Must return habit_id");
-    }
-  },
+  // Habits (5)
   {
     name: "get_habits",
     description: "Get tracked habits",
@@ -430,7 +509,17 @@ const mcpTools = [
     requiredFields: ["habits"],
     validates: (data) => {
       assert(Array.isArray(data.habits), "Must have habits array");
-    }
+    },
+  },
+  {
+    name: "create_habit",
+    description: "Create a new habit",
+    endpoint: "/v1/habits",
+    method: "POST",
+    requiredFields: ["habit_id"],
+    validates: (data) => {
+      assert(data.habit_id, "Must return habit_id");
+    },
   },
   {
     name: "update_habit",
@@ -440,7 +529,7 @@ const mcpTools = [
     requiredFields: ["habit_id"],
     validates: (data) => {
       assert(data.habit_id, "Must return habit_id");
-    }
+    },
   },
   {
     name: "delete_habit",
@@ -450,7 +539,7 @@ const mcpTools = [
     requiredFields: ["habit_id"],
     validates: (data) => {
       assert(data.habit_id, "Must return habit_id");
-    }
+    },
   },
   {
     name: "update_habit_streak",
@@ -460,40 +549,40 @@ const mcpTools = [
     requiredFields: ["habit_id"],
     validates: (data) => {
       assert(data.habit_id, "Must return habit_id");
-    }
+    },
   },
-  // Baselines
+  // Baselines (3)
   {
     name: "get_baselines",
-    description: "Get baselines",
+    description: "Get baseline metrics",
     endpoint: "/v1/baselines",
     method: "GET",
     requiredFields: ["baselines"],
     validates: (data) => {
       assert(Array.isArray(data.baselines), "Must have baselines array");
-    }
+    },
   },
   {
     name: "create_baseline",
-    description: "Create baseline",
+    description: "Create a baseline metric",
     endpoint: "/v1/baselines",
     method: "POST",
     requiredFields: ["baseline_id"],
     validates: (data) => {
       assert(data.baseline_id, "Must return baseline_id");
-    }
+    },
   },
   {
     name: "delete_baseline",
-    description: "Delete baseline",
+    description: "Delete a baseline metric",
     endpoint: "/v1/baselines/baseline-test",
     method: "DELETE",
     requiredFields: ["baseline_id"],
     validates: (data) => {
       assert(data.baseline_id, "Must return baseline_id");
-    }
+    },
   },
-  // Corrections
+  // Corrections (2)
   {
     name: "get_corrections",
     description: "Get user corrections",
@@ -502,7 +591,7 @@ const mcpTools = [
     requiredFields: ["corrections"],
     validates: (data) => {
       assert(Array.isArray(data.corrections), "Must have corrections array");
-    }
+    },
   },
   {
     name: "submit_correction",
@@ -512,9 +601,9 @@ const mcpTools = [
     requiredFields: ["status"],
     validates: (data) => {
       assert(data.status === "created", "Status must be created");
-    }
+    },
   },
-  // Privacy
+  // Privacy (2)
   {
     name: "get_sensitive_mode",
     description: "Get sensitive mode status",
@@ -523,7 +612,7 @@ const mcpTools = [
     requiredFields: ["active"],
     validates: (data) => {
       assert(typeof data.active === "boolean", "Must have active field");
-    }
+    },
   },
   {
     name: "set_sensitive_mode",
@@ -533,46 +622,91 @@ const mcpTools = [
     requiredFields: ["active"],
     validates: (data) => {
       assert(typeof data.active === "boolean", "Must have active field");
-    }
+    },
   },
-  // System
-  {
-    name: "get_health_status",
-    description: "Get server health",
-    endpoint: "/v1/health",
-    method: "GET",
-    requiredFields: ["status"],
-    validates: (data) => {
-      assert(data.status === "ok", "Status must be ok");
-      assert(data.server === "andrometry-relay", "Server must be andrometry-relay");
-    }
-  },
+  // System (3)
   {
     name: "get_server_health",
-    description: "Get detailed server health",
+    description: "Get detailed server health with database statistics",
     endpoint: "/v1/health/detailed",
     method: "GET",
     requiredFields: ["status", "db_stats"],
     validates: (data) => {
       assert(data.status === "ok", "Status must be ok");
       assert(data.db_stats, "Must have db_stats");
-    }
+    },
   },
   {
     name: "get_audit_log",
-    description: "Get audit log",
+    description: "Get the audit log of all agent and system actions",
     endpoint: "/v1/audit",
     method: "GET",
     requiredFields: ["audit_log"],
     validates: (data) => {
       assert(Array.isArray(data.audit_log), "Must have audit_log array");
-    }
-  }
+    },
+  },
+  // Metrics & Analytics (5)
+  {
+    name: "get_work_pattern_metrics",
+    description: "Get computed work pattern analytics",
+    endpoint: "/v1/metrics/work-patterns",
+    method: "GET",
+    requiredFields: ["total_focus_minutes", "context_switching_rate_per_hour"],
+    validates: (data) => {
+      assert(typeof data.total_focus_minutes === "number", "Must have total_focus_minutes");
+      assert(typeof data.context_switching_rate_per_hour === "number", "Must have context_switching_rate_per_hour");
+    },
+  },
+  {
+    name: "get_readiness_score",
+    description: "Get readiness/fatigue score",
+    endpoint: "/v1/metrics/readiness",
+    method: "GET",
+    requiredFields: ["readiness_score", "fatigue_probability"],
+    validates: (data) => {
+      assert(typeof data.readiness_score === "number", "Must have readiness_score");
+      assert(typeof data.fatigue_probability === "number", "Must have fatigue_probability");
+    },
+  },
+  {
+    name: "get_collector_health",
+    description: "Get collector health status",
+    endpoint: "/v1/health/collectors",
+    method: "GET",
+    requiredFields: ["collectors", "staleness_seconds"],
+    validates: (data) => {
+      assert(Array.isArray(data.collectors), "Must have collectors array");
+      assert(typeof data.staleness_seconds === "number", "Must have staleness_seconds");
+    },
+  },
+  {
+    name: "evaluate_goal_progress",
+    description: "Evaluate goal progress",
+    endpoint: "/v1/goals/goal-test/progress",
+    method: "GET",
+    requiredFields: ["goal_id", "assessment"],
+    validates: (data) => {
+      assert(data.goal_id, "Must have goal_id");
+      assert(data.assessment, "Must have assessment");
+    },
+  },
+  {
+    name: "evaluate_habit_completion",
+    description: "Evaluate habit completion",
+    endpoint: "/v1/habits/habit-test/evaluation",
+    method: "GET",
+    requiredFields: ["habit_id", "assessment"],
+    validates: (data) => {
+      assert(data.habit_id, "Must have habit_id");
+      assert(data.assessment, "Must have assessment");
+    },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 35, `Expected 35 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 42, `Expected 42 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -587,14 +721,12 @@ for (const tool of mcpTools) {
 }
 console.log(`  ✓ All tool definitions are complete\n`);
 
-// Test 3: Tool names match MCP server
-console.log("[test] Test 3: Tool names match expected MCP tools");
-const expectedToolNames = mcpTools.map(t => t.name);
-for (const expected of expectedToolNames) {
-  const tool = mcpTools.find(t => t.name === expected);
-  assert(tool, `Missing expected tool: ${expected}`);
-}
-console.log(`  ✓ All ${expectedToolNames.length} expected tool names present\n`);
+// Test 3: Tool names are unique
+console.log("[test] Test 3: Tool names are unique");
+const names = mcpTools.map((t) => t.name);
+const uniqueNames = new Set(names);
+assert(uniqueNames.size === names.length, `Found duplicate tool names`);
+console.log(`  ✓ All ${names.length} tool names are unique\n`);
 
 // Test 4: Mock response validation
 console.log("[test] Test 4: Mock responses validate against tool schemas");
@@ -615,16 +747,30 @@ console.log();
 // Test 5: Endpoint coverage
 console.log("[test] Test 5: All architecture endpoints are covered");
 const architectureEndpoints = [
-  "/v1/context/current", "/v1/briefing/current", "/v1/timeline",
-  "/v1/events", "/v1/summary/daily", "/v1/summary/weekly",
-  "/v1/summary/five_minute", "/v1/summary/hourly",
-  "/v1/agent/observations", "/v1/agent/interventions", "/v1/feedback",
-  "/v1/outcomes", "/v1/goals", "/v1/habits",
-  "/v1/baselines", "/v1/corrections",
-  "/v1/health", "/v1/health/detailed",
-  "/v1/privacy/sensitive-mode", "/v1/audit"
+  "/v1/context/current",
+  "/v1/briefing/current",
+  "/v1/timeline",
+  "/v1/events",
+  "/v1/summary/daily",
+  "/v1/summary/weekly",
+  "/v1/summary/five_minute",
+  "/v1/summary/hourly",
+  "/v1/agent/observations",
+  "/v1/agent/interventions",
+  "/v1/feedback",
+  "/v1/outcomes",
+  "/v1/goals",
+  "/v1/habits",
+  "/v1/baselines",
+  "/v1/corrections",
+  "/v1/health/detailed",
+  "/v1/health/collectors",
+  "/v1/privacy/sensitive-mode",
+  "/v1/audit",
+  "/v1/metrics/work-patterns",
+  "/v1/metrics/readiness",
 ];
-const toolEndpoints = mcpTools.map(t => t.endpoint);
+const toolEndpoints = mcpTools.map((t) => t.endpoint);
 for (const endpoint of architectureEndpoints) {
   assert(toolEndpoints.includes(endpoint), `Missing endpoint: ${endpoint}`);
 }
@@ -633,52 +779,62 @@ console.log(`  ✓ All ${architectureEndpoints.length} architecture endpoints co
 // Test 6: HTTP methods
 console.log("[test] Test 6: HTTP methods are correct");
 for (const tool of mcpTools) {
-  assert(["GET", "POST", "PUT", "PATCH", "DELETE"].includes(tool.method),
-    `${tool.name} has invalid method: ${tool.method}`);
+  assert(
+    ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(tool.method),
+    `${tool.name} has invalid method: ${tool.method}`
+  );
 }
 console.log(`  ✓ All HTTP methods valid\n`);
 
 // Test 7: Scope requirements
 console.log("[test] Test 7: Scope requirements documented");
 const scopeMap = {
-  "get_current_context": "agent:context:read",
-  "get_current_briefing": "agent:briefing:read",
-  "get_timeline": "agent:timeline:read",
-  "get_events": "agent:events:read",
-  "get_daily_summary": "agent:summaries:read",
-  "get_weekly_summary": "agent:summaries:read",
-  "get_five_minute_summaries": "agent:summaries:read",
-  "get_hourly_summaries": "agent:summaries:read",
-  "write_observation": "agent:observations:write",
-  "get_agent_observations": "agent:observations:write",
-  "propose_intervention": "agent:interventions:write",
-  "submit_feedback": "agent:feedback:read",
-  "get_feedback": "agent:feedback:read",
-  "record_outcome": "agent:outcomes:write",
-  "get_intervention_outcomes": "agent:feedback:read",
-  "create_goal": "agent:goals:write",
-  "get_goals": "agent:goals:read",
-  "update_goal": "agent:goals:write",
-  "delete_goal": "agent:goals:write",
-  "create_habit": "agent:habits:write",
-  "get_habits": "agent:habits:read",
-  "update_habit": "agent:habits:write",
-  "delete_habit": "agent:habits:write",
-  "update_habit_streak": "agent:habits:write",
-  "get_baselines": "agent:goals:read",
-  "create_baseline": "agent:goals:write",
-  "delete_baseline": "agent:goals:write",
-  "get_corrections": "device:write_feedback",
-  "submit_correction": "device:write_feedback",
-  "get_sensitive_mode": "device:read_config",
-  "set_sensitive_mode": "device:read_config",
-  "get_health_status": "none",
-  "get_server_health": "none",
-  "get_audit_log": "admin"
+  get_current_context: "agent:context:read",
+  get_current_briefing: "agent:briefing:read",
+  get_timeline: "agent:timeline:read",
+  get_focus_sessions: "agent:timeline:read",
+  get_place_visits: "agent:timeline:read",
+  get_distraction_segments: "agent:timeline:read",
+  get_daily_summary: "agent:summaries:read",
+  get_weekly_summary: "agent:summaries:read",
+  get_five_minute_summaries: "agent:summaries:read",
+  get_hourly_summaries: "agent:summaries:read",
+  search_events: "agent:events:read",
+  add_agent_observation: "agent:observations:write",
+  get_agent_observations: "agent:observations:read",
+  propose_intervention: "agent:interventions:write",
+  update_intervention_status: "agent:interventions:write",
+  submit_feedback: "agent:feedback:write",
+  get_feedback: "agent:feedback:read",
+  record_outcome: "agent:outcomes:write",
+  get_intervention_outcomes: "agent:outcomes:read",
+  get_goals: "agent:goals:read",
+  create_goal: "agent:goals:write",
+  update_goal: "agent:goals:write",
+  delete_goal: "agent:goals:write",
+  get_habits: "agent:habits:read",
+  create_habit: "agent:habits:write",
+  update_habit: "agent:habits:write",
+  delete_habit: "agent:habits:write",
+  update_habit_streak: "agent:habits:write",
+  get_baselines: "agent:baselines:read",
+  create_baseline: "agent:baselines:write",
+  delete_baseline: "agent:baselines:write",
+  get_corrections: "device:corrections:read",
+  submit_correction: "device:corrections:write",
+  get_sensitive_mode: "device:privacy:read",
+  set_sensitive_mode: "device:privacy:write",
+  get_server_health: "none",
+  get_audit_log: "admin",
+  get_work_pattern_metrics: "agent:analytics:read",
+  get_readiness_score: "agent:analytics:read",
+  get_collector_health: "agent:health:read",
+  evaluate_goal_progress: "agent:goals:read",
+  evaluate_habit_completion: "agent:habits:read",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
-  const tool = mcpTools.find(t => t.name === toolName);
-  assert(tool, `Tool ${toolName} not found`);
+  const tool = mcpTools.find((t) => t.name === toolName);
+  assert(tool, `Tool ${toolName} not found in mcpTools`);
 }
 console.log(`  ✓ Scope requirements documented for ${Object.keys(scopeMap).length} tools\n`);
 
@@ -689,6 +845,14 @@ for (const tool of mcpTools) {
   assert(!tool.description.includes("TODO"), `${tool.name} has TODO in description`);
 }
 console.log(`  ✓ All tool descriptions are meaningful\n`);
+
+// Test 9: Tool count matches scope map
+console.log("[test] Test 9: Tool count matches scope map count");
+assert(
+  mcpTools.length === Object.keys(scopeMap).length,
+  `Tool count (${mcpTools.length}) doesn't match scope map (${Object.keys(scopeMap).length})`
+);
+console.log(`  ✓ Tool count matches scope map: ${mcpTools.length}\n`);
 
 console.log("========================================");
 console.log("[test] ALL MCP TESTS PASSED");

@@ -872,6 +872,99 @@ server.tool(
 );
 
 // ============================================================
+// Metrics & Analytics Tools (§39, §40)
+// ============================================================
+
+server.tool(
+  "get_work_pattern_metrics",
+  "Get computed work pattern analytics — focus bout lengths, switching rates, fragmentation, late-night work",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601, default: 24h ago)"),
+    to: z.string().optional().describe("End time (ISO 8601, default: now)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString() ? `?${params}` : "";
+    const data = await relayFetch(`/v1/metrics/work-patterns${qs}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "get_readiness_score",
+  "Get the user's current readiness/fatigue score based on sleep, activity, and workload",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/metrics/readiness");
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "get_collector_health",
+  "Get per-collector health status — which data sources are healthy, stale, or degraded",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/health/collectors");
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "evaluate_goal_progress",
+  "Evaluate progress toward a specific goal — compares current metrics against baselines",
+  {
+    goal_id: z.string().describe("Goal ID to evaluate"),
+  },
+  async ({ goal_id }) => {
+    const data = await relayFetch(`/v1/goals/${goal_id}/progress`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "evaluate_habit_completion",
+  "Evaluate habit adherence — assesses streak, strength, and formation stage",
+  {
+    habit_id: z.string().describe("Habit ID to evaluate"),
+  },
+  async ({ habit_id }) => {
+    const data = await relayFetch(`/v1/habits/${habit_id}/evaluation`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "update_intervention_status",
+  "Update the status of an intervention (delivered, accepted, dismissed, ignored, completed, expired)",
+  {
+    intervention_id: z.string().describe("Intervention ID"),
+    status: z.enum(["delivered", "accepted", "dismissed", "ignored", "completed", "failed", "expired"]).describe("New status"),
+  },
+  async ({ intervention_id, status }) => {
+    const data = await relayFetch(`/v1/agent/interventions/${intervention_id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 
