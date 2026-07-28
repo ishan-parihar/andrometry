@@ -676,6 +676,7 @@ func (db *DB) GetDevice(deviceID string) (*models.Device, error) {
 }
 
 // DetectMissingSequences finds gaps in the sequence range for a device.
+// Safety limit of 10000 to prevent OOM on large ranges.
 func (db *DB) DetectMissingSequences(deviceID string, from, to int64) []int64 {
 	if from == 0 && to == 0 {
 		return []int64{}
@@ -683,7 +684,7 @@ func (db *DB) DetectMissingSequences(deviceID string, from, to int64) []int64 {
 	rows, err := db.Query(`
 		SELECT sequence FROM events
 		WHERE device_id = ? AND sequence >= ? AND sequence <= ?
-		ORDER BY sequence ASC
+		ORDER BY sequence ASC LIMIT 10000
 	`, deviceID, from, to)
 	if err != nil {
 		return []int64{}

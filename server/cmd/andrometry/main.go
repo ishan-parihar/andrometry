@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
@@ -112,6 +113,19 @@ func main() {
 	if err := database.EnforceRetentionPolicy(db.DefaultRetentionPolicy()); err != nil {
 		log.Printf("[retention] warning: failed to enforce policy: %v", err)
 	}
+
+	// Periodic retention enforcement every 24 hours
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := database.EnforceRetentionPolicy(db.DefaultRetentionPolicy()); err != nil {
+				log.Printf("[retention] warning: periodic enforcement failed: %v", err)
+			} else {
+				log.Println("[retention] periodic enforcement complete")
+			}
+		}
+	}()
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("[andrometry] relay server starting on %s", addr)
