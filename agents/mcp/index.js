@@ -433,6 +433,46 @@ server.tool(
 );
 
 server.tool(
+  "update_goal",
+  "Update a goal's status, title, or target",
+  {
+    goal_id: z.string().describe("Goal ID"),
+    status: z.enum(["active", "paused", "completed", "abandoned"]).optional().describe("New status"),
+    title: z.string().optional().describe("Updated title"),
+    target: z.record(z.any()).optional().describe("Updated target values"),
+  },
+  async ({ goal_id, status, title, target }) => {
+    const body = {};
+    if (status) body.status = status;
+    if (title) body.title = title;
+    if (target) body.target = target;
+    const data = await relayFetch(`/v1/goals/${goal_id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "delete_goal",
+  "Delete a goal",
+  {
+    goal_id: z.string().describe("Goal ID to delete"),
+  },
+  async ({ goal_id }) => {
+    const data = await relayFetch(`/v1/goals/${goal_id}`, {
+      method: "DELETE",
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
   "get_habits",
   "Get the user's tracked habits with streaks and strength",
   {},
@@ -489,6 +529,85 @@ server.tool(
         evidence_sources,
       }),
     });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "update_habit",
+  "Update a habit's status, type, or streak",
+  {
+    habit_id: z.string().describe("Habit ID"),
+    status: z.enum(["active", "paused", "completed", "abandoned"]).optional().describe("New status"),
+    streak_days: z.number().optional().describe("Updated streak days"),
+    habit_strength: z.number().optional().describe("Updated habit strength (0-1)"),
+  },
+  async ({ habit_id, status, streak_days, habit_strength }) => {
+    const body = {};
+    if (status) body.status = status;
+    if (streak_days !== undefined) body.streak_days = streak_days;
+    if (habit_strength !== undefined) body.habit_strength = habit_strength;
+    const data = await relayFetch(`/v1/habits/${habit_id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "delete_habit",
+  "Delete a habit",
+  {
+    habit_id: z.string().describe("Habit ID to delete"),
+  },
+  async ({ habit_id }) => {
+    const data = await relayFetch(`/v1/habits/${habit_id}`, {
+      method: "DELETE",
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "update_habit_streak",
+  "Update a habit's streak count and strength score",
+  {
+    habit_id: z.string().describe("Habit ID"),
+    streak_days: z.number().describe("Number of consecutive days"),
+    habit_strength: z.number().min(0).max(1).describe("Habit strength 0-1"),
+  },
+  async ({ habit_id, streak_days, habit_strength }) => {
+    const data = await relayFetch(`/v1/habits/${habit_id}/streak`, {
+      method: "POST",
+      body: JSON.stringify({ streak_days, habit_strength }),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "get_feedback",
+  "Get user feedback, optionally filtered by target",
+  {
+    target_type: z.string().optional().describe("Filter by target type (intervention, observation, etc.)"),
+    target_id: z.string().optional().describe("Filter by target ID"),
+    limit: z.number().optional().describe("Max results (default 50)"),
+  },
+  async ({ target_type, target_id, limit }) => {
+    const params = new URLSearchParams();
+    if (target_type) params.set("target_type", target_type);
+    if (target_id) params.set("target_id", target_id);
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/feedback?${params}`);
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
     };

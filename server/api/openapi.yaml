@@ -610,6 +610,28 @@ paths:
           description: Status updated
 
   /v1/feedback:
+    get:
+      summary: Get user feedback
+      tags: [Agent Loop]
+      parameters:
+        - name: target_type
+          in: query
+          schema:
+            type: string
+          description: Filter by target type
+        - name: target_id
+          in: query
+          schema:
+            type: string
+          description: Filter by target ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Feedback list
     post:
       summary: Submit user feedback
       tags: [Agent Loop]
@@ -643,6 +665,48 @@ paths:
         "201":
           description: Goal created
 
+  /v1/goals/{id}:
+    patch:
+      summary: Update a goal
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                goal_type:
+                  type: string
+                title:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, paused, completed, abandoned]
+                target:
+                  type: object
+      responses:
+        "200":
+          description: Goal updated
+    delete:
+      summary: Delete a goal
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Goal deleted
+
   /v1/habits:
     get:
       summary: Get user habits
@@ -662,6 +726,74 @@ paths:
       responses:
         "201":
           description: Habit created
+
+  /v1/habits/{id}:
+    patch:
+      summary: Update a habit
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                habit_type:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, paused, completed, abandoned]
+                streak_days:
+                  type: integer
+                habit_strength:
+                  type: number
+      responses:
+        "200":
+          description: Habit updated
+    delete:
+      summary: Delete a habit
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Habit deleted
+
+  /v1/habits/{id}/streak:
+    post:
+      summary: Update habit streak
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                streak_days:
+                  type: integer
+                habit_strength:
+                  type: number
+              required: [streak_days, habit_strength]
+      responses:
+        "200":
+          description: Streak updated
 
   /v1/outcomes:
     get:
@@ -907,6 +1039,30 @@ paths:
       responses:
         "200":
           description: All data wiped
+
+  /v1/health/detailed:
+    get:
+      summary: Detailed health with DB stats
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Server health with database statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  server:
+                    type: string
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                  db_stats:
+                    type: object
 
   /v1/audit:
     get:

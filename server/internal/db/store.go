@@ -1017,15 +1017,6 @@ func (db *DB) GetFeedback(userID, targetType, targetID string, limit int) ([]mod
 
 // --- Token Management ---
 
-// RevokeToken revokes a specific token by setting revoked_at.
-func (db *DB) RevokeToken(tokenID string) error {
-	_, err := db.Exec(`
-		UPDATE auth_tokens SET revoked_at = datetime('now')
-		WHERE token_id = ?
-	`, tokenID)
-	return err
-}
-
 // RevokeAllTokensForUser revokes all tokens for a user.
 func (db *DB) RevokeAllTokensForUser(userID string) error {
 	_, err := db.Exec(`
@@ -1033,31 +1024,6 @@ func (db *DB) RevokeAllTokensForUser(userID string) error {
 		WHERE user_id = ? AND revoked_at IS NULL
 	`, userID)
 	return err
-}
-
-// GetTokensByUser retrieves all tokens for a user.
-func (db *DB) GetTokensByUser(userID string) ([]models.AuthToken, error) {
-	rows, err := db.Query(`
-		SELECT token_id, user_id, token_type, scopes, created_at, expires_at, revoked_at
-		FROM auth_tokens
-		WHERE user_id = ?
-		ORDER BY created_at DESC
-	`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var tokens []models.AuthToken
-	for rows.Next() {
-		var t models.AuthToken
-		err := rows.Scan(&t.TokenID, &t.UserID, &t.TokenType, &t.Scopes, &t.CreatedAt, &t.ExpiresAt, &t.RevokedAt)
-		if err != nil {
-			return nil, err
-		}
-		tokens = append(tokens, t)
-	}
-	return tokens, nil
 }
 
 // GetLastInterventionTime returns the timestamp of the most recent intervention for a user.
