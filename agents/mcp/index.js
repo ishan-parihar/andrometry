@@ -615,6 +615,236 @@ server.tool(
 );
 
 // ============================================================
+// Baseline Tools
+// ============================================================
+
+server.tool(
+  "get_baselines",
+  "Get all baseline metrics for comparison — average focus time, distraction rate, etc.",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/baselines");
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "create_baseline",
+  "Create or update a baseline metric for comparison",
+  {
+    metric_name: z.string().describe("Metric name (e.g., 'deep_work_minutes_daily', 'steps_daily')"),
+    value: z.number().describe("Baseline value"),
+    window_days: z.number().optional().describe("Rolling window in days (default 7)"),
+  },
+  async ({ metric_name, value, window_days }) => {
+    const data = await relayFetch("/v1/baselines", {
+      method: "POST",
+      body: JSON.stringify({
+        metric_name,
+        value,
+        window_days: window_days || 7,
+      }),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "delete_baseline",
+  "Delete a baseline metric",
+  {
+    baseline_id: z.string().describe("Baseline ID to delete"),
+  },
+  async ({ baseline_id }) => {
+    const data = await relayFetch(`/v1/baselines/${baseline_id}`, {
+      method: "DELETE",
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Correction Tools
+// ============================================================
+
+server.tool(
+  "get_corrections",
+  "Get user corrections to timeline segments — label fixes, splits, merges, etc.",
+  {
+    limit: z.number().optional().describe("Max results (default 50)"),
+  },
+  async ({ limit }) => {
+    const params = limit ? `?limit=${limit}` : "";
+    const data = await relayFetch(`/v1/corrections${params}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "submit_correction",
+  "Submit a correction to a timeline segment (label fix, split, merge, delete, move)",
+  {
+    correction_type: z
+      .enum(["label", "split", "delete", "merge", "move"])
+      .describe("Type of correction"),
+    segment_id: z.string().describe("Segment ID to correct"),
+    new_label: z.string().optional().describe("New label (for label corrections)"),
+    split_at: z.string().optional().describe("Timestamp to split at (for split corrections)"),
+    reason: z.string().optional().describe("Reason for the correction"),
+  },
+  async ({ correction_type, segment_id, new_label, split_at, reason }) => {
+    const body = { correction_type, segment_id };
+    if (new_label) body.new_label = new_label;
+    if (split_at) body.split_at = split_at;
+    if (reason) body.reason = reason;
+    const data = await relayFetch("/v1/corrections", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Observation Read Tools
+// ============================================================
+
+server.tool(
+  "get_agent_observations",
+  "Get recent agent observations — risks, patterns, anomalies, milestones",
+  {
+    limit: z.number().optional().describe("Max observations (default 50)"),
+  },
+  async ({ limit }) => {
+    const params = limit ? `?limit=${limit}` : "";
+    const data = await relayFetch(`/v1/agent/observations${params}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Granular Summary Tools
+// ============================================================
+
+server.tool(
+  "get_five_minute_summaries",
+  "Get five-minute resolution summaries for detailed analysis",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601, default: 2h ago)"),
+    to: z.string().optional().describe("End time (ISO 8601, default: now)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString() ? `?${params}` : "";
+    const data = await relayFetch(`/v1/summary/five_minute${qs}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "get_hourly_summaries",
+  "Get hourly summaries for trend analysis",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601, default: 24h ago)"),
+    to: z.string().optional().describe("End time (ISO 8601, default: now)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString() ? `?${params}` : "";
+    const data = await relayFetch(`/v1/summary/hourly${qs}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Privacy Tools
+// ============================================================
+
+server.tool(
+  "get_sensitive_mode",
+  "Check if sensitive mode is active (redacts location, health, and communication data)",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/privacy/sensitive-mode");
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "set_sensitive_mode",
+  "Enable or disable sensitive mode — when active, location/health/communication data is redacted",
+  {
+    active: z.boolean().describe("true to enable sensitive mode, false to disable"),
+  },
+  async ({ active }) => {
+    const data = await relayFetch("/v1/privacy/sensitive-mode", {
+      method: "POST",
+      body: JSON.stringify({ active }),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Audit Tools
+// ============================================================
+
+server.tool(
+  "get_audit_log",
+  "Get the audit log of all agent and system actions",
+  {
+    limit: z.number().optional().describe("Max entries (default 100)"),
+  },
+  async ({ limit }) => {
+    const params = limit ? `?limit=${limit}` : "";
+    const data = await relayFetch(`/v1/audit${params}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Health Tools
+// ============================================================
+
+server.tool(
+  "get_server_health",
+  "Get detailed server health with database statistics",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/health/detailed");
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 

@@ -1023,3 +1023,217 @@ func TestHealthCheckDetailed(t *testing.T) {
 		t.Error("expected db_stats in response")
 	}
 }
+
+// --- Outcome tests ---
+
+func TestPostOutcome_andGet(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// First create an intervention to attach outcome to
+	intervention := map[string]interface{}{
+		"agent_id":          "coach",
+		"intervention_type": "nudge",
+		"title":             "Take a break",
+		"message":           "You have been working for 2 hours",
+		"severity":          "low",
+	}
+	body, _ := json.Marshal(intervention)
+	req := httptest.NewRequest("POST", "/v1/agent/interventions", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := withUserContext("primary")
+	ctx = context.WithValue(ctx, middleware.ActorTypeKey, "agent")
+	ctx = context.WithValue(ctx, middleware.ActorIDKey, "coach")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.PostIntervention(w, req)
+	var intResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &intResp)
+	interventionID := intResp["intervention_id"].(string)
+
+	// Post outcome
+	score := 0.85
+	outcome := map[string]interface{}{
+		"intervention_id":      interventionID,
+		"outcome_type":         "accepted",
+		"effectiveness_score":  score,
+		"evidence":             map[string]interface{}{"behavior_change": true},
+	}
+	body2, _ := json.Marshal(outcome)
+	req2 := httptest.NewRequest("POST", "/v1/outcomes", bytes.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.PostOutcome(w2, req2)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("post outcome status = %d, want %d", w2.Code, http.StatusCreated)
+	}
+
+	// Get outcomes
+	req3 := httptest.NewRequest("GET", "/v1/outcomes", nil)
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.GetOutcomes(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("get outcomes status = %d, want %d", w3.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w3.Body.Bytes(), &resp)
+	outcomes := resp["outcomes"].([]interface{})
+	if len(outcomes) != 1 {
+		t.Fatalf("outcomes count = %d, want 1", len(outcomes))
+	}
+}
+
+// --- Sensitive mode tests ---
+
+func TestGetSensitiveMode_default(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/privacy/sensitive-mode", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetSensitiveMode(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["active"] == nil {
+		t.Error("expected 'active' field in response")
+	}
+	if resp["active"] != false {
+		e := resp["active"]
+		t.Errorf("active = %v, want false (default)", e)
+	}
+}
+
+func TestSetSensitiveMode(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Enable sensitive mode
+	body, _ := json.Marshal(map[string]interface{}{"active": true})
+	req := httptest.NewRequest("POST", "/v1/privacy/sensitive-mode", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.SetSensitiveMode(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["active"] != true {
+		t.Errorf("active = %v, want true", resp["active"])
+	}
+
+	// Verify it persists
+	req2 := httptest.NewRequest("GET", "/v1/privacy/sensitive-mode", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetSensitiveMode(w2, req2)
+	var resp2 map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp2)
+	if resp2["active"] != true {
+		t.Errorf("persisted active = %v, want true", resp2["active"])
+	}
+}
+
+// --- User correction round-trip ---
+
+func TestUserCorrection_roundTrip(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Post correction
+	correction := map[string]interface{}{
+		"correction_type": "label",
+		"segment_id":      "seg-test",
+		"new_label":       "meeting",
+		"reason":          "calendar_sync",
+	}
+	body, _ := json.Marshal(correction)
+	req := httptest.NewRequest("POST", "/v1/corrections", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostUserCorrection(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post correction status = %d, want %d", w.Code, http.StatusCreated)
+	}
+	var postResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &postResp)
+
+	// Get corrections
+	req2 := httptest.NewRequest("GET", "/v1/corrections", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetUserCorrections(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("get corrections status = %d, want %d", w2.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	corrections := resp["corrections"].([]interface{})
+	if len(corrections) != 1 {
+		t.Fatalf("corrections count = %d, want 1", len(corrections))
+	}
+
+	c := corrections[0].(map[string]interface{})
+	correctionID := c["correction_id"]
+
+	// Delete correction
+	req3 := httptest.NewRequest("DELETE", "/v1/corrections/"+correctionID.(string), nil)
+	req3.SetPathValue("id", correctionID.(string))
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.DeleteUserCorrection(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("delete correction status = %d, want %d", w3.Code, http.StatusOK)
+	}
+
+	// Verify deleted
+	req4 := httptest.NewRequest("GET", "/v1/corrections", nil)
+	req4 = req4.WithContext(withUserContext("primary"))
+	w4 := httptest.NewRecorder()
+	h.GetUserCorrections(w4, req4)
+	var resp2 map[string]interface{}
+	json.Unmarshal(w4.Body.Bytes(), &resp2)
+	corrections2 := resp2["corrections"].([]interface{})
+	if len(corrections2) != 0 {
+		t.Errorf("corrections count after delete = %d, want 0", len(corrections2))
+	}
+}
+
+// --- Wipe data test ---
+
+func TestWipeData(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Insert some data first
+	_ = h.DB.InsertGoal(&models.Goal{GoalID: "g1", UserID: "primary", GoalType: "test", Status: "active", Payload: "{}"})
+
+	// Wipe
+	req := httptest.NewRequest("POST", "/v1/privacy/wipe", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.WipeData(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	// Verify data is gone
+	req2 := httptest.NewRequest("GET", "/v1/goals", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetGoals(w2, req2)
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	goals := resp["goals"].([]interface{})
+	if len(goals) != 0 {
+		t.Errorf("goals after wipe = %d, want 0", len(goals))
+	}
+}

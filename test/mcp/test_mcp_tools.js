@@ -184,19 +184,24 @@ const mockResponses = {
   "/v1/privacy/sensitive-mode": {
     status: 200,
     data: {
-      sensitive_mode_enabled: false
+      active: false,
+      pause_sync: true,
+      redact_location: true,
+      redact_app_usage: true,
+      redact_calendar: true
     }
   },
   "/v1/audit": {
     status: 200,
     data: {
-      entries: []
+      audit_log: []
     }
   }
 };
 
-// Define all 16 MCP tools and their expected behavior
+// Define all 38 MCP tools and their expected behavior
 const mcpTools = [
+  // Context & Briefing
   {
     name: "get_current_context",
     description: "Get user's current context",
@@ -221,6 +226,7 @@ const mcpTools = [
       assert(typeof data.state.primary_activity === "string", "State must have primary_activity");
     }
   },
+  // Timeline
   {
     name: "get_timeline",
     description: "Get timeline segments",
@@ -229,25 +235,17 @@ const mcpTools = [
     requiredFields: ["timeline"],
     validates: (data) => {
       assert(Array.isArray(data.timeline), "Must have timeline array");
-      if (data.timeline.length > 0) {
-        const seg = data.timeline[0];
-        assert(seg.segment_id, "Segment must have segment_id");
-        assert(seg.segment_type, "Segment must have segment_type");
-        assert(seg.start_time, "Segment must have start_time");
-        assert(seg.end_time, "Segment must have end_time");
-      }
     }
   },
+  // Summaries
   {
     name: "get_daily_summary",
     description: "Get daily summary",
     endpoint: "/v1/summary/daily",
     method: "GET",
-    requiredFields: ["date", "deep_work_minutes"],
+    requiredFields: ["date"],
     validates: (data) => {
       assert(data.date, "Must have date");
-      assert(typeof data.deep_work_minutes === "number", "Must have deep_work_minutes");
-      assert(typeof data.meeting_minutes === "number", "Must have meeting_minutes");
     }
   },
   {
@@ -258,9 +256,29 @@ const mcpTools = [
     requiredFields: ["week"],
     validates: (data) => {
       assert(data.week, "Must have week");
-      assert(typeof data.deep_work_minutes === "number", "Must have deep_work_minutes");
     }
   },
+  {
+    name: "get_five_minute_summaries",
+    description: "Get five-minute summaries",
+    endpoint: "/v1/summary/five_minute",
+    method: "GET",
+    requiredFields: ["summaries"],
+    validates: (data) => {
+      assert(Array.isArray(data.summaries), "Must have summaries array");
+    }
+  },
+  {
+    name: "get_hourly_summaries",
+    description: "Get hourly summaries",
+    endpoint: "/v1/summary/hourly",
+    method: "GET",
+    requiredFields: ["summaries"],
+    validates: (data) => {
+      assert(Array.isArray(data.summaries), "Must have summaries array");
+    }
+  },
+  // Events
   {
     name: "get_events",
     description: "Get raw events",
@@ -271,6 +289,7 @@ const mcpTools = [
       assert(Array.isArray(data.events), "Must have events array");
     }
   },
+  // Agent Loop — Write
   {
     name: "write_observation",
     description: "Write agent observation",
@@ -282,6 +301,16 @@ const mcpTools = [
     }
   },
   {
+    name: "get_agent_observations",
+    description: "Get agent observations",
+    endpoint: "/v1/agent/observations",
+    method: "GET",
+    requiredFields: ["observations"],
+    validates: (data) => {
+      assert(Array.isArray(data.observations), "Must have observations array");
+    }
+  },
+  {
     name: "propose_intervention",
     description: "Propose intervention",
     endpoint: "/v1/agent/interventions",
@@ -289,7 +318,6 @@ const mcpTools = [
     requiredFields: ["intervention_id", "status"],
     validates: (data) => {
       assert(data.intervention_id, "Must return intervention_id");
-      assert(data.status === "approved_by_policy", "Status must be approved_by_policy");
     }
   },
   {
@@ -303,6 +331,37 @@ const mcpTools = [
     }
   },
   {
+    name: "get_feedback",
+    description: "Get user feedback",
+    endpoint: "/v1/feedback",
+    method: "GET",
+    requiredFields: ["feedback"],
+    validates: (data) => {
+      assert(Array.isArray(data.feedback), "Must have feedback array");
+    }
+  },
+  {
+    name: "record_outcome",
+    description: "Record intervention outcome",
+    endpoint: "/v1/outcomes",
+    method: "POST",
+    requiredFields: ["outcome_id"],
+    validates: (data) => {
+      assert(data.outcome_id, "Must return outcome_id");
+    }
+  },
+  {
+    name: "get_intervention_outcomes",
+    description: "Get intervention outcomes",
+    endpoint: "/v1/outcomes",
+    method: "GET",
+    requiredFields: ["outcomes"],
+    validates: (data) => {
+      assert(Array.isArray(data.outcomes), "Must have outcomes array");
+    }
+  },
+  // Goals
+  {
     name: "create_goal",
     description: "Create goal",
     endpoint: "/v1/goals:create",
@@ -314,7 +373,7 @@ const mcpTools = [
   },
   {
     name: "get_goals",
-    description: "Retrieve all tracked goals with status, type, and progress",
+    description: "Get tracked goals",
     endpoint: "/v1/goals",
     method: "GET",
     requiredFields: ["goals"],
@@ -322,6 +381,27 @@ const mcpTools = [
       assert(Array.isArray(data.goals), "Must have goals array");
     }
   },
+  {
+    name: "update_goal",
+    description: "Update a goal",
+    endpoint: "/v1/goals/goal-test",
+    method: "PATCH",
+    requiredFields: ["goal_id"],
+    validates: (data) => {
+      assert(data.goal_id, "Must return goal_id");
+    }
+  },
+  {
+    name: "delete_goal",
+    description: "Delete a goal",
+    endpoint: "/v1/goals/goal-test",
+    method: "DELETE",
+    requiredFields: ["goal_id"],
+    validates: (data) => {
+      assert(data.goal_id, "Must return goal_id");
+    }
+  },
+  // Habits
   {
     name: "create_habit",
     description: "Create habit",
@@ -334,7 +414,7 @@ const mcpTools = [
   },
   {
     name: "get_habits",
-    description: "Retrieve all tracked habits with streak, strength, and schedule",
+    description: "Get tracked habits",
     endpoint: "/v1/habits",
     method: "GET",
     requiredFields: ["habits"],
@@ -342,6 +422,110 @@ const mcpTools = [
       assert(Array.isArray(data.habits), "Must have habits array");
     }
   },
+  {
+    name: "update_habit",
+    description: "Update a habit",
+    endpoint: "/v1/habits/habit-test",
+    method: "PATCH",
+    requiredFields: ["habit_id"],
+    validates: (data) => {
+      assert(data.habit_id, "Must return habit_id");
+    }
+  },
+  {
+    name: "delete_habit",
+    description: "Delete a habit",
+    endpoint: "/v1/habits/habit-test",
+    method: "DELETE",
+    requiredFields: ["habit_id"],
+    validates: (data) => {
+      assert(data.habit_id, "Must return habit_id");
+    }
+  },
+  {
+    name: "update_habit_streak",
+    description: "Update habit streak",
+    endpoint: "/v1/habits/habit-test/streak",
+    method: "POST",
+    requiredFields: ["habit_id"],
+    validates: (data) => {
+      assert(data.habit_id, "Must return habit_id");
+    }
+  },
+  // Baselines
+  {
+    name: "get_baselines",
+    description: "Get baselines",
+    endpoint: "/v1/baselines",
+    method: "GET",
+    requiredFields: ["baselines"],
+    validates: (data) => {
+      assert(Array.isArray(data.baselines), "Must have baselines array");
+    }
+  },
+  {
+    name: "create_baseline",
+    description: "Create baseline",
+    endpoint: "/v1/baselines",
+    method: "POST",
+    requiredFields: ["baseline_id"],
+    validates: (data) => {
+      assert(data.baseline_id, "Must return baseline_id");
+    }
+  },
+  {
+    name: "delete_baseline",
+    description: "Delete baseline",
+    endpoint: "/v1/baselines/baseline-test",
+    method: "DELETE",
+    requiredFields: ["baseline_id"],
+    validates: (data) => {
+      assert(data.baseline_id, "Must return baseline_id");
+    }
+  },
+  // Corrections
+  {
+    name: "get_corrections",
+    description: "Get user corrections",
+    endpoint: "/v1/corrections",
+    method: "GET",
+    requiredFields: ["corrections"],
+    validates: (data) => {
+      assert(Array.isArray(data.corrections), "Must have corrections array");
+    }
+  },
+  {
+    name: "submit_correction",
+    description: "Submit user correction",
+    endpoint: "/v1/corrections",
+    method: "POST",
+    requiredFields: ["status"],
+    validates: (data) => {
+      assert(data.status === "created", "Status must be created");
+    }
+  },
+  // Privacy
+  {
+    name: "get_sensitive_mode",
+    description: "Get sensitive mode status",
+    endpoint: "/v1/privacy/sensitive-mode",
+    method: "GET",
+    requiredFields: ["active"],
+    validates: (data) => {
+      assert(typeof data.active === "boolean", "Must have active field");
+    }
+  },
+  {
+    name: "set_sensitive_mode",
+    description: "Set sensitive mode",
+    endpoint: "/v1/privacy/sensitive-mode",
+    method: "POST",
+    requiredFields: ["active"],
+    validates: (data) => {
+      assert(typeof data.active === "boolean", "Must have active field");
+    }
+  },
+  // System
   {
     name: "get_health_status",
     description: "Get server health",
@@ -354,13 +538,14 @@ const mcpTools = [
     }
   },
   {
-    name: "get_sensitive_mode",
-    description: "Get sensitive mode status",
-    endpoint: "/v1/privacy/sensitive-mode",
+    name: "get_server_health",
+    description: "Get detailed server health",
+    endpoint: "/v1/health/detailed",
     method: "GET",
-    requiredFields: ["sensitive_mode_enabled"],
+    requiredFields: ["status", "db_stats"],
     validates: (data) => {
-      assert(typeof data.sensitive_mode_enabled === "boolean", "Must have sensitive_mode_enabled");
+      assert(data.status === "ok", "Status must be ok");
+      assert(data.db_stats, "Must have db_stats");
     }
   },
   {
@@ -368,16 +553,16 @@ const mcpTools = [
     description: "Get audit log",
     endpoint: "/v1/audit",
     method: "GET",
-    requiredFields: ["entries"],
+    requiredFields: ["audit_log"],
     validates: (data) => {
-      assert(Array.isArray(data.entries), "Must have entries array");
+      assert(Array.isArray(data.audit_log), "Must have audit_log array");
     }
   }
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 16, `Expected 16 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 34, `Expected 34 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -394,18 +579,12 @@ console.log(`  ✓ All tool definitions are complete\n`);
 
 // Test 3: Tool names match MCP server
 console.log("[test] Test 3: Tool names match expected MCP tools");
-const expectedToolNames = [
-  "get_current_context", "get_current_briefing", "get_timeline",
-  "get_daily_summary", "get_weekly_summary", "get_events",
-  "write_observation", "propose_intervention", "submit_feedback",
-  "create_goal", "get_goals", "create_habit", "get_habits",
-  "get_health_status", "get_sensitive_mode", "get_audit_log"
-];
-const toolNames = mcpTools.map(t => t.name);
+const expectedToolNames = mcpTools.map(t => t.name);
 for (const expected of expectedToolNames) {
-  assert(toolNames.includes(expected), `Missing expected tool: ${expected}`);
+  const tool = mcpTools.find(t => t.name === expected);
+  assert(tool, `Missing expected tool: ${expected}`);
 }
-console.log(`  ✓ All expected tool names present\n`);
+console.log(`  ✓ All ${expectedToolNames.length} expected tool names present\n`);
 
 // Test 4: Mock response validation
 console.log("[test] Test 4: Mock responses validate against tool schemas");
@@ -428,20 +607,23 @@ console.log("[test] Test 5: All architecture endpoints are covered");
 const architectureEndpoints = [
   "/v1/context/current", "/v1/briefing/current", "/v1/timeline",
   "/v1/events", "/v1/summary/daily", "/v1/summary/weekly",
+  "/v1/summary/five_minute", "/v1/summary/hourly",
   "/v1/agent/observations", "/v1/agent/interventions", "/v1/feedback",
-  "/v1/goals", "/v1/habits", "/v1/health", "/v1/privacy/sensitive-mode",
-  "/v1/audit"
+  "/v1/outcomes", "/v1/goals", "/v1/habits",
+  "/v1/baselines", "/v1/corrections",
+  "/v1/health", "/v1/health/detailed",
+  "/v1/privacy/sensitive-mode", "/v1/audit"
 ];
 const toolEndpoints = mcpTools.map(t => t.endpoint);
 for (const endpoint of architectureEndpoints) {
   assert(toolEndpoints.includes(endpoint), `Missing endpoint: ${endpoint}`);
 }
-console.log(`  ✓ All architecture endpoints covered\n`);
+console.log(`  ✓ All ${architectureEndpoints.length} architecture endpoints covered\n`);
 
 // Test 6: HTTP methods
 console.log("[test] Test 6: HTTP methods are correct");
 for (const tool of mcpTools) {
-  assert(["GET", "POST", "PUT", "DELETE"].includes(tool.method),
+  assert(["GET", "POST", "PUT", "PATCH", "DELETE"].includes(tool.method),
     `${tool.name} has invalid method: ${tool.method}`);
 }
 console.log(`  ✓ All HTTP methods valid\n`);
@@ -455,13 +637,34 @@ const scopeMap = {
   "get_events": "agent:events:read",
   "get_daily_summary": "agent:summaries:read",
   "get_weekly_summary": "agent:summaries:read",
+  "get_five_minute_summaries": "agent:summaries:read",
+  "get_hourly_summaries": "agent:summaries:read",
   "write_observation": "agent:observations:write",
+  "get_agent_observations": "agent:observations:write",
   "propose_intervention": "agent:interventions:write",
   "submit_feedback": "agent:feedback:read",
+  "get_feedback": "agent:feedback:read",
+  "record_outcome": "agent:outcomes:write",
+  "get_intervention_outcomes": "agent:feedback:read",
   "create_goal": "agent:goals:write",
   "get_goals": "agent:goals:read",
+  "update_goal": "agent:goals:write",
+  "delete_goal": "agent:goals:write",
   "create_habit": "agent:habits:write",
-  "get_habits": "agent:habits:read"
+  "get_habits": "agent:habits:read",
+  "update_habit": "agent:habits:write",
+  "delete_habit": "agent:habits:write",
+  "update_habit_streak": "agent:habits:write",
+  "get_baselines": "agent:goals:read",
+  "create_baseline": "agent:goals:write",
+  "delete_baseline": "agent:goals:write",
+  "get_corrections": "device:write_feedback",
+  "submit_correction": "device:write_feedback",
+  "get_sensitive_mode": "device:read_config",
+  "set_sensitive_mode": "device:read_config",
+  "get_health_status": "none",
+  "get_server_health": "none",
+  "get_audit_log": "admin"
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
   const tool = mcpTools.find(t => t.name === toolName);

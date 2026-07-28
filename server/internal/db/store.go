@@ -836,10 +836,11 @@ func (db *DB) GetBaselines(userID string) ([]models.Baseline, error) {
 }
 
 // InsertUserCorrection inserts a user correction record.
+// Uses action 'correction' to distinguish from the audit.Log entry which uses 'user_correction'.
 func (db *DB) InsertUserCorrection(userID, correctionJSON string) error {
 	_, err := db.Exec(`
 		INSERT INTO audit_log (audit_id, user_id, actor_type, actor_id, action, target_type, metadata)
-		VALUES (?, ?, 'user', ?, 'user_correction', 'segment', ?)
+		VALUES (?, ?, 'user', ?, 'correction', 'segment', ?)
 	`, uuid.New().String(), userID, userID, correctionJSON)
 	return err
 }
@@ -852,7 +853,7 @@ func (db *DB) GetUserCorrections(userID string, limit int) ([]map[string]string,
 	rows, err := db.Query(`
 		SELECT audit_id, metadata, created_at
 		FROM audit_log
-		WHERE user_id = ? AND action = 'user_correction'
+		WHERE user_id = ? AND action = 'correction'
 		ORDER BY created_at DESC
 		LIMIT ?
 	`, userID, limit)
@@ -879,7 +880,7 @@ func (db *DB) GetUserCorrections(userID string, limit int) ([]map[string]string,
 func (db *DB) DeleteUserCorrection(userID, correctionID string) error {
 	_, err := db.Exec(`
 		DELETE FROM audit_log
-		WHERE user_id = ? AND audit_id = ? AND action = 'user_correction'
+		WHERE user_id = ? AND audit_id = ? AND action = 'correction'
 	`, userID, correctionID)
 	return err
 }
