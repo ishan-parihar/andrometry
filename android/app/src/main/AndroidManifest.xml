@@ -61,6 +61,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- FileProvider for share intent (§6.4.8 ExportBackup) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Notification listener service -->
         <service
             android:name=".collectors.notifications.NotificationCollector"
