@@ -61,7 +61,7 @@ class WorkPatternEngine @Inject constructor(
         val dayStart = "${dateStr}T00:00:00Z"
         val dayEnd = "${dateStr}T23:59:59Z"
 
-        val segments = database.segmentDao().getSegmentsInRange(userId, dayStart, dayEnd)
+        val segments = database.segmentDao().getSegmentsInRange(dayStart, dayEnd)
 
         // Extract focus segments
         val focusSegments = segments.filter {
@@ -154,7 +154,7 @@ class WorkPatternEngine @Inject constructor(
      * Gets focus bouts for a time range.
      */
     suspend fun getFocusBouts(userId: String, from: String, to: String): List<FocusBout> {
-        val segments = database.segmentDao().getSegmentsInRange(userId, from, to)
+        val segments = database.segmentDao().getSegmentsInRange(from, to)
 
         return segments
             .filter { it.segmentType == "focus_segment" }
