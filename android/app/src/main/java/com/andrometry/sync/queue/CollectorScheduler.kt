@@ -11,7 +11,6 @@ import com.andrometry.collectors.permissions.PermissionCollector
 
 import com.andrometry.inference.segments.SegmentEngine
 import com.andrometry.inference.context.ContextInferenceEngine
-import com.andrometry.inference.outcomes.OutcomeEngine
 import com.andrometry.summaries.five_minute.FiveMinuteSummaryEngine
 import com.andrometry.summaries.hourly.HourlySummaryEngine
 import dagger.assisted.Assisted
@@ -46,8 +45,7 @@ class CollectorScheduler @Inject constructor() {
         const val WORK_FIVE_MIN = "andrometry_collector_five_minute"
         const val WORK_HOURLY = "andrometry_collector_hourly"
         const val WORK_SEGMENT = "andrometry_collector_segment"
-        const val WORK_CONTEXT = "andrometry_collector_context"        const val WORK_OUTCOMES = "andrometry_collector_outcomes"
-        const val WORK_PERMISSIONS = "andrometry_collector_permissions"
+        const val WORK_CONTEXT = "andrometry_collector_context"        const val WORK_PERMISSIONS = "andrometry_collector_permissions"
     }
 
     fun scheduleAll(context: Context) {
@@ -56,8 +54,7 @@ class CollectorScheduler @Inject constructor() {
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
         scheduleSegmentation(context)
-        scheduleContextSnapshot(context)        scheduleOutcomeProcessing(context)
-        schedulePermissionCheck(context)
+        scheduleContextSnapshot(context)        schedulePermissionCheck(context)
     }
 
     /**
@@ -360,25 +357,7 @@ class ContextSnapshotWorker @AssistedInject constructor(
 // Inference engine workers (§35 Outcome, §38 Habit)
 // ============================================================
 
-@HiltWorker
-class OutcomeProcessingWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
-    private val outcomeEngine: OutcomeEngine
-) : CoroutineWorker(appContext, params) {
 
-    override suspend fun doWork(): Result {
-        return try {
-            // §35: Periodic health check — verify outcome pipeline is functioning
-            val recentOutcomes = outcomeEngine.getRecentOutcomes(10)
-            val overallEffectiveness = outcomeEngine.getOverallEffectiveness()
-            android.util.Log.d("OutcomeWorker", "Recent outcomes: ${recentOutcomes.size}, effectiveness: ${overallEffectiveness}")
-            Result.success()
-        } catch (e: Exception) {
-            Result.retry()
-        }
-    }
-}
 
 // ============================================================
 // Collector workers (§7 Permission, §9.7 Communication, §9.8 Focus)

@@ -5,6 +5,7 @@ import android.service.notification.StatusBarNotification
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
+import com.andrometry.collectors.communication.CommunicationCollector
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class NotificationCollector : NotificationListenerService() {
 
     @Inject lateinit var sequenceGenerator: SequenceGenerator
     @Inject lateinit var database: AndrometryDatabase
+    @Inject lateinit var communicationCollector: CommunicationCollector
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -94,6 +96,19 @@ class NotificationCollector : NotificationListenerService() {
         )
 
         database.eventDao().insert(event)
+
+        // §9.7: Wire communication metadata to CommunicationCollector
+        // Check package name directly (phone/dialer/sms are categorized as "other")
+        if (posted) {
+            when {
+                sbn.packageName.contains("phone") || sbn.packageName.contains("dialer") -> {
+                    communicationCollector.recordIncomingCall()
+                }
+                sbn.packageName.contains("sms") || sbn.packageName.contains("messaging") -> {
+                    communicationCollector.recordSmsReceived()
+                }
+            }
+        }
     }
 
     private fun categorizePackage(packageName: String): String {
