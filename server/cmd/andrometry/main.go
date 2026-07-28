@@ -101,6 +101,9 @@ func main() {
 	// User corrections
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
+	// SSE stream for real-time context updates (§21)
+	mux.Handle("GET /v1/stream", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.StreamContext))))
+
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
 	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))

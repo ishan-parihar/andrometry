@@ -1061,6 +1061,73 @@ func (h *Handler) PostUserCorrection(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]interface{}{"status": "created", "segment_updated": segmentUpdated})
 }
 
+// --- SSE Stream (§21) ---
+
+// StreamContext handles GET /v1/stream — Server-Sent Events for real-time context updates.
+// Agents subscribe to receive context_changed, focus_session_started, distraction_spike, etc.
+func (h *Handler) StreamContext(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		respondError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+
+	ctx := r.Context()
+	var lastETag string
+
+	// Send initial context immediately
+	h.sendContextEvent(w, flusher, uid, &lastETag)
+
+	// Poll for context changes every 5 seconds
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.sendContextEvent(w, flusher, uid, &lastETag)
+		}
+	}
+}
+
+// sendContextEvent sends a single SSE event if the context has changed.
+func (h *Handler) sendContextEvent(w http.ResponseWriter, flusher http.Flusher, uid string, lastETag *string) {
+	ctx, err := h.DB.GetContextByUser(uid)
+	if err != nil {
+		return // No context yet, skip
+	}
+
+	// Only send if ETag changed (context updated)
+	if ctx.ETag == *lastETag {
+		return
+	}
+	*lastETag = ctx.ETag
+
+	var contextData map[string]interface{}
+	json.Unmarshal([]byte(ctx.Context), &contextData)
+
+	event := map[string]interface{}{
+		"event":     "context_changed",
+		"data":      map[string]interface{}{"timestamp": ctx.Timestamp, "timezone": ctx.Timezone, "context": contextData},
+		"id":        ctx.ETag,
+		"retry":     10000,
+	}
+
+	data, _ := json.Marshal(event)
+	fmt.Fprintf(w, "event: context_changed\ndata: %s\nid: %s\n\n", string(data), ctx.ETag)
+	flusher.Flush()
+}
+
 // --- Health ---
 
 // HealthCheck handles GET /v1/health.
