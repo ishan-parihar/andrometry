@@ -3,7 +3,7 @@ package com.andrometry.collectors.usage
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
-import com.andrometry.core.database.AppClassificationEntity
+import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import java.text.SimpleDateFormat
@@ -14,10 +14,12 @@ import javax.inject.Inject
  * Collects app usage summaries from UsageStatsManager.
  * Runs periodically (Tier 1) via WorkManager.
  *
+ * Respects sensitive mode: when active, top_apps are redacted to categories only.
  * Default cadence: 15 minutes (balanced), 1-5 minutes (active mode).
  */
 class UsageCollector @Inject constructor(
-    private val sequenceGenerator: SequenceGenerator
+    private val sequenceGenerator: SequenceGenerator,
+    private val sensitiveModeManager: SensitiveModeManager
 ) {
     data class AppUsage(
         val packageName: String,
@@ -91,10 +93,15 @@ class UsageCollector @Inject constructor(
         }.format(Date())
 
         val tz = TimeZone.getDefault()
+        val redactAppUsage = sensitiveModeManager.shouldRedactAppUsage()
         val payload = mapOf(
             "by_category" to byCategory,
-            "top_apps" to topApps.take(10).map {
-                mapOf("package" to it.packageName, "category" to it.category, "seconds" to it.seconds)
+            "top_apps" to topApps.take(10).map { app ->
+                mapOf(
+                    "package" to if (redactAppUsage) "[redacted]" else app.packageName,
+                    "category" to app.category,
+                    "seconds" to app.seconds
+                )
             },
             "app_switch_count" to appSwitchCount
         )
