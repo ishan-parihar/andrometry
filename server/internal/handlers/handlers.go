@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -145,7 +144,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 			EventType:     getStringFromMap(e, "event_type", "unknown"),
 			Collector:     getStringFromMap(e, "collector", ""),
 			Source:        getStringFromMap(e, "source", ""),
-			SchemaVersion: getIntFromMap(e, "schema_version", 1),
+			SchemaVersion: getIntFromMap(e, "schema_version"),
 			Payload:       string(payloadBytes),
 		})
 	}
@@ -166,7 +165,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 			EndTime:     getStringFromMap(s, "end_time", nowUTC()),
 			Label:       getStringFromMap(s, "label", "unknown"),
 			Confidence:  getFloat64FromMap(s, "confidence"),
-			Version:     getIntFromMap(s, "version", 1),
+			Version:     getIntFromMap(s, "version"),
 			ValidFrom:   getStringFromMap(s, "valid_from", nowUTC()),
 			Evidence:    string(evidenceBytes),
 			Payload:     string(payloadBytes),
@@ -188,11 +187,12 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Upsert summaries
+	// Upsert summaries (daily and weekly)
 	acceptedSummaries := 0
 	for _, s := range batch.Summaries {
 		summaryBytes, _ := json.Marshal(s)
 		date := getStringFromMap(s, "date", "")
+		week := getStringFromMap(s, "week", "")
 		tz := getStringFromMap(s, "timezone", "UTC")
 		if date != "" {
 			_ = h.DB.UpsertDailySummary(&models.DailySummary{
@@ -203,12 +203,24 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 				Version:  1,
 			})
 			acceptedSummaries++
+		} else if week != "" {
+			_ = h.DB.UpsertWeeklySummary(&models.WeeklySummary{
+				UserID:   uid,
+				Week:     week,
+				Timezone: tz,
+				Summary:  string(summaryBytes),
+				Version:  1,
+			})
+			acceptedSummaries++
 		}
 	}
 
+	// Gap detection — find missing sequences
+	missingSequences := h.DB.DetectMissingSequences(batch.DeviceID, batch.SequenceStart, batch.SequenceEnd)
+
 	// Count pending interventions
 	pendingInterventions, _ := h.DB.CountInterventionsToday(uid)
-	_ = audit.Log(h.DB, uid, "device", batch.DeviceID, "batch_ingest", "batch", batch.BatchID,
+	audit.Log(h.DB, uid, "device", batch.DeviceID, "batch_ingest", "batch", batch.BatchID,
 		fmt.Sprintf(`{"events":%d,"segments":%d}`, acceptedEvents, acceptedSegments))
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -216,7 +228,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		"rejected_events":       len(batch.Events) - acceptedEvents,
 		"accepted_segments":     acceptedSegments,
 		"accepted_summaries":    acceptedSummaries,
-		"missing_sequences":     []int64{},
+		"missing_sequences":     missingSequences,
 		"pending_interventions": pendingInterventions,
 		"server_time":           nowUTC(),
 	})
@@ -875,6 +887,160 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 		logs = []models.AuditLog{}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"audit_log": logs})
+}
+
+// --- Five-Minute Summaries ---
+
+// GetFiveMinuteSummaries handles GET /v1/summary/five_minute.
+func (h *Handler) GetFiveMinuteSummaries(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	_ = uid
+	from := queryParam(r, "from", time.Now().UTC().Add(-2*time.Hour).Format(time.RFC3339))
+	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
+
+	summaries, err := h.DB.GetFiveMinuteSummaries(from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query five-minute summaries")
+		return
+	}
+	if summaries == nil {
+		summaries = []map[string]string{}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{"summaries": summaries})
+}
+
+// --- Hourly Summaries ---
+
+// GetHourlySummaries handles GET /v1/summary/hourly.
+func (h *Handler) GetHourlySummaries(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	_ = uid
+	from := queryParam(r, "from", time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339))
+	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
+
+	summaries, err := h.DB.GetHourlySummaries(from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query hourly summaries")
+		return
+	}
+	if summaries == nil {
+		summaries = []map[string]string{}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{"summaries": summaries})
+}
+
+// --- Baselines ---
+
+// GetBaselines handles GET /v1/baselines.
+func (h *Handler) GetBaselines(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	baselines, err := h.DB.GetBaselines(uid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query baselines")
+		return
+	}
+	if baselines == nil {
+		baselines = []models.Baseline{}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"baselines": baselines})
+}
+
+// PostBaseline handles POST /v1/baselines.
+func (h *Handler) PostBaseline(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var req struct {
+		BaselineID string  `json:"baseline_id"`
+		MetricName string  `json:"metric_name"`
+		WindowDays int     `json:"window_days"`
+		Value      float64 `json:"value"`
+	}
+
+	if err := json.Unmarshal(body, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	uid := userID(r)
+	if req.BaselineID == "" {
+		req.BaselineID = generateID()
+	}
+	if req.WindowDays == 0 {
+		req.WindowDays = 7
+	}
+
+	err := h.DB.UpsertBaseline(&models.Baseline{
+		BaselineID: req.BaselineID,
+		UserID:     uid,
+		MetricName: req.MetricName,
+		WindowDays: req.WindowDays,
+		Value:      req.Value,
+	})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to upsert baseline")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "upsert_baseline", "baseline", req.BaselineID, "")
+	respondJSON(w, http.StatusCreated, map[string]string{"baseline_id": req.BaselineID, "status": "created"})
+}
+
+// --- User Corrections ---
+
+// PostUserCorrection handles POST /v1/corrections.
+func (h *Handler) PostUserCorrection(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var correction struct {
+		CorrectionType string                 `json:"correction_type"` // label, split, delete, merge, move
+		SegmentID      string                 `json:"segment_id"`
+		NewLabel       string                 `json:"new_label,omitempty"`
+		SplitAt        string                 `json:"split_at,omitempty"`
+		Reason         string                 `json:"reason,omitempty"`
+		Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	}
+
+	if err := json.Unmarshal(body, &correction); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	uid := userID(r)
+	correctionBytes, _ := json.Marshal(map[string]interface{}{
+		"correction_type": correction.CorrectionType,
+		"segment_id":      correction.SegmentID,
+		"new_label":       correction.NewLabel,
+		"split_at":        correction.SplitAt,
+		"reason":          correction.Reason,
+		"metadata":        correction.Metadata,
+	})
+
+	err := h.DB.InsertUserCorrection(uid, string(correctionBytes))
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to insert correction")
+		return
+	}
+
+	// If label correction, update the segment
+	if correction.CorrectionType == "label" && correction.SegmentID != "" && correction.NewLabel != "" {
+		// Update segment label via the existing upsert mechanism
+		segment, err := h.DB.GetSegmentByID(correction.SegmentID)
+		if err == nil && segment != nil {
+			segment.Label = correction.NewLabel
+			segment.Version++
+			segment.RevisionReason = &correction.Reason
+			_ = h.DB.UpsertSegment(segment)
+		}
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "user_correction", "segment", correction.SegmentID,
+		fmt.Sprintf(`{"type":"%s"}`, correction.CorrectionType))
+
+	respondJSON(w, http.StatusCreated, map[string]string{"status": "created"})
 }
 
 // --- Health ---

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/andrometry/server/internal/models"
+	"github.com/google/uuid"
 )
 
 // UpsertDevice inserts or updates a device.
@@ -162,6 +163,28 @@ func (db *DB) GetContextByUser(userID string) (*models.CurrentContext, error) {
 		return nil, err
 	}
 	return &c, nil
+}
+
+// GetSegmentByID retrieves a single segment by ID.
+func (db *DB) GetSegmentByID(segmentID string) (*models.TimelineSegment, error) {
+	var s models.TimelineSegment
+	err := db.QueryRow(`
+		SELECT segment_id, device_id, user_id, segment_type, layer,
+			start_time, end_time, label, confidence, version,
+			valid_from, valid_to, ingested_at, revised_at, revision_reason,
+			evidence, payload, received_at
+		FROM timeline_segments
+		WHERE segment_id = ?
+	`, segmentID).Scan(
+		&s.SegmentID, &s.DeviceID, &s.UserID, &s.SegmentType, &s.Layer,
+		&s.StartTime, &s.EndTime, &s.Label, &s.Confidence, &s.Version,
+		&s.ValidFrom, &s.ValidTo, &s.IngestedAt, &s.RevisedAt, &s.RevisionReason,
+		&s.Evidence, &s.Payload, &s.ReceivedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 // UpsertSegment upserts a timeline segment.
@@ -650,4 +673,185 @@ func (db *DB) GetDevice(deviceID string) (*models.Device, error) {
 		return nil, err
 	}
 	return &d, nil
+}
+
+// DetectMissingSequences finds gaps in the sequence range for a device.
+func (db *DB) DetectMissingSequences(deviceID string, from, to int64) []int64 {
+	if from == 0 && to == 0 {
+		return []int64{}
+	}
+	rows, err := db.Query(`
+		SELECT sequence FROM events
+		WHERE device_id = ? AND sequence >= ? AND sequence <= ?
+		ORDER BY sequence ASC
+	`, deviceID, from, to)
+	if err != nil {
+		return []int64{}
+	}
+	defer rows.Close()
+
+	var existing []int64
+	for rows.Next() {
+		var seq int64
+		if err := rows.Scan(&seq); err == nil {
+			existing = append(existing, seq)
+		}
+	}
+
+	var missing []int64
+	expected := from
+	for _, seq := range existing {
+		for expected < seq {
+			missing = append(missing, expected)
+			expected++
+		}
+		expected = seq + 1
+	}
+	for expected <= to {
+		missing = append(missing, expected)
+		expected++
+	}
+
+	return missing
+}
+
+// UpsertFiveMinuteSummary upserts a five-minute summary.
+func (db *DB) UpsertFiveMinuteSummary(startTime, endTime, summaryJSON string) error {
+	_, err := db.Exec(`
+		INSERT INTO five_minute_summary (start_time, end_time, summary, sync_state)
+		VALUES (?, ?, ?, 'pending')
+		ON CONFLICT(start_time) DO UPDATE SET
+			end_time = excluded.end_time,
+			summary = excluded.summary,
+			sync_state = 'pending'
+	`, startTime, endTime, summaryJSON)
+	return err
+}
+
+// GetFiveMinuteSummaries retrieves five-minute summaries in a time range.
+func (db *DB) GetFiveMinuteSummaries(from, to string) ([]map[string]string, error) {
+	rows, err := db.Query(`
+		SELECT start_time, end_time, summary
+		FROM five_minute_summary
+		WHERE start_time >= ? AND start_time <= ?
+		ORDER BY start_time ASC
+	`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []map[string]string
+	for rows.Next() {
+		var start, end, summary string
+		if err := rows.Scan(&start, &end, &summary); err == nil {
+			results = append(results, map[string]string{
+				"start_time": start,
+				"end_time":   end,
+				"summary":    summary,
+			})
+		}
+	}
+	return results, nil
+}
+
+// UpsertHourlySummary upserts an hourly summary.
+func (db *DB) UpsertHourlySummary(startTime, endTime, summaryJSON string) error {
+	_, err := db.Exec(`
+		INSERT INTO hourly_summary (start_time, end_time, summary, sync_state)
+		VALUES (?, ?, ?, 'pending')
+		ON CONFLICT(start_time) DO UPDATE SET
+			end_time = excluded.end_time,
+			summary = excluded.summary,
+			sync_state = 'pending'
+	`, startTime, endTime, summaryJSON)
+	return err
+}
+
+// GetHourlySummaries retrieves hourly summaries in a time range.
+func (db *DB) GetHourlySummaries(from, to string) ([]map[string]string, error) {
+	rows, err := db.Query(`
+		SELECT start_time, end_time, summary
+		FROM hourly_summary
+		WHERE start_time >= ? AND start_time <= ?
+		ORDER BY start_time ASC
+	`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []map[string]string
+	for rows.Next() {
+		var start, end, summary string
+		if err := rows.Scan(&start, &end, &summary); err == nil {
+			results = append(results, map[string]string{
+				"start_time": start,
+				"end_time":   end,
+				"summary":    summary,
+			})
+		}
+	}
+	return results, nil
+}
+
+// UpsertBaseline upserts a baseline metric, ensuring one baseline per (user_id, metric_name).
+func (db *DB) UpsertBaseline(b *models.Baseline) error {
+	// Try to find existing baseline for this user+metric
+	var existingID string
+	err := db.QueryRow(`
+		SELECT baseline_id FROM baselines
+		WHERE user_id = ? AND metric_name = ?
+		LIMIT 1
+	`, b.UserID, b.MetricName).Scan(&existingID)
+
+	if err == nil && existingID != "" {
+		// Update existing
+		_, err = db.Exec(`
+			UPDATE baselines SET value = ?, window_days = ?, computed_at = datetime('now')
+			WHERE baseline_id = ?
+		`, b.Value, b.WindowDays, existingID)
+		return err
+	}
+
+	// Insert new
+	_, err = db.Exec(`
+		INSERT INTO baselines (baseline_id, user_id, metric_name, window_days, value, computed_at)
+		VALUES (?, ?, ?, ?, ?, datetime('now'))
+	`, b.BaselineID, b.UserID, b.MetricName, b.WindowDays, b.Value)
+	return err
+}
+
+// GetBaselines retrieves all baselines for a user.
+func (db *DB) GetBaselines(userID string) ([]models.Baseline, error) {
+	rows, err := db.Query(`
+		SELECT baseline_id, user_id, metric_name, window_days, value, computed_at
+		FROM baselines
+		WHERE user_id = ?
+		ORDER BY metric_name ASC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var baselines []models.Baseline
+	for rows.Next() {
+		var b models.Baseline
+		err := rows.Scan(&b.BaselineID, &b.UserID, &b.MetricName, &b.WindowDays, &b.Value, &b.ComputedAt)
+		if err != nil {
+			return nil, err
+		}
+		baselines = append(baselines, b)
+	}
+	return baselines, nil
+}
+
+// InsertUserCorrection inserts a user correction record.
+func (db *DB) InsertUserCorrection(userID, correctionJSON string) error {
+	_, err := db.Exec(`
+		INSERT INTO audit_log (audit_id, user_id, actor_type, actor_id, action, target_type, metadata)
+		VALUES (?, ?, 'user', ?, 'user_correction', 'segment', ?)
+	`, uuid.New().String(), userID, userID, correctionJSON)
+	return err
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/models"

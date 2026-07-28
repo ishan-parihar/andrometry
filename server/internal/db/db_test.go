@@ -544,7 +544,7 @@ func TestGetEvents_filterByType(t *testing.T) {
 	}
 	defer db.Close()
 
-	events := []*Event{
+	events := []*models.Event{
 		{EventID: "e1", DeviceID: "d1", UserID: "primary", Sequence: 1, Timestamp: "2026-01-01T09:00:00Z", Timezone: "UTC", EventType: "screen_on", SchemaVersion: 1, Payload: "{}"},
 		{EventID: "e2", DeviceID: "d1", UserID: "primary", Sequence: 2, Timestamp: "2026-01-01T09:01:00Z", Timezone: "UTC", EventType: "app_usage_summary", SchemaVersion: 1, Payload: "{}"},
 		{EventID: "e3", DeviceID: "d1", UserID: "primary", Sequence: 3, Timestamp: "2026-01-01T09:02:00Z", Timezone: "UTC", EventType: "screen_off", SchemaVersion: 1, Payload: "{}"},

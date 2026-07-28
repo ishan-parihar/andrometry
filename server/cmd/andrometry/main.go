@@ -6,8 +6,6 @@ import (
 	"log"
 	"net/http"
 
-
-	"github.com/andrometry/server/internal/audit"
 	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
 	"github.com/andrometry/server/internal/handlers"
@@ -91,6 +89,17 @@ func main() {
 	// Audit log
 	mux.Handle("GET /v1/audit", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.GetAuditLog))))
 
+	// Five-minute and hourly summaries
+	mux.Handle("GET /v1/summary/five_minute", auth(middleware.RequireScope("agent:summaries:read")(http.HandlerFunc(h.GetFiveMinuteSummaries))))
+	mux.Handle("GET /v1/summary/hourly", auth(middleware.RequireScope("agent:summaries:read")(http.HandlerFunc(h.GetHourlySummaries))))
+
+	// Baselines
+	mux.Handle("GET /v1/baselines", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.GetBaselines))))
+	mux.Handle("POST /v1/baselines", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostBaseline))))
+
+	// User corrections
+	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
+
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
 	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))
@@ -98,6 +107,11 @@ func main() {
 
 	// Apply global middleware
 	handler := middleware.CORS(middleware.Logging(mux))
+
+	// Enforce retention policy on startup
+	if err := database.EnforceRetentionPolicy(db.DefaultRetentionPolicy()); err != nil {
+		log.Printf("[retention] warning: failed to enforce policy: %v", err)
+	}
 
 	addr := fmt.Sprintf(":%d", *port)
 	log.Printf("[andrometry] relay server starting on %s", addr)
