@@ -54,9 +54,33 @@ data class TimelineSegmentEntity(
     val syncState: String = "pending"
 )
 
+@Entity(tableName = "five_minute_summary")
+data class FiveMinuteSummaryEntity(
+    @PrimaryKey val startTime: String,
+    val endTime: String,
+    val summary: String,
+    val syncState: String = "pending"
+)
+
+@Entity(tableName = "hourly_summary")
+data class HourlySummaryEntity(
+    @PrimaryKey val startTime: String,
+    val endTime: String,
+    val summary: String,
+    val syncState: String = "pending"
+)
+
 @Entity(tableName = "daily_summary")
 data class DailySummaryEntity(
     @PrimaryKey val date: String,
+    val timezone: String,
+    val summary: String,
+    val syncState: String = "pending"
+)
+
+@Entity(tableName = "weekly_summary")
+data class WeeklySummaryEntity(
+    @PrimaryKey val week: String,
     val timezone: String,
     val summary: String,
     val syncState: String = "pending"
@@ -150,6 +174,17 @@ data class PermissionStateEntity(
     val syncState: String = "pending"
 )
 
+@Entity(tableName = "outcomes")
+data class OutcomeEntity(
+    @PrimaryKey val outcomeId: String,
+    val interventionId: String,
+    val timestamp: String,
+    val outcomeType: String,
+    val effectivenessScore: Double? = null,
+    val payload: String,
+    val syncState: String = "pending"
+)
+
 // ============================================================
 // DAOs
 // ============================================================
@@ -212,6 +247,30 @@ interface SegmentDao {
 }
 
 @Dao
+interface FiveMinuteSummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(summary: FiveMinuteSummaryEntity)
+
+    @Query("SELECT * FROM five_minute_summary WHERE startTime = :startTime")
+    suspend fun get(startTime: String): FiveMinuteSummaryEntity?
+
+    @Query("SELECT * FROM five_minute_summary ORDER BY startTime DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 100): List<FiveMinuteSummaryEntity>
+}
+
+@Dao
+interface HourlySummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(summary: HourlySummaryEntity)
+
+    @Query("SELECT * FROM hourly_summary WHERE startTime = :startTime")
+    suspend fun get(startTime: String): HourlySummaryEntity?
+
+    @Query("SELECT * FROM hourly_summary ORDER BY startTime DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 48): List<HourlySummaryEntity>
+}
+
+@Dao
 interface DailySummaryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(summary: DailySummaryEntity)
@@ -221,6 +280,18 @@ interface DailySummaryDao {
 
     @Query("SELECT * FROM daily_summary ORDER BY date DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 7): List<DailySummaryEntity>
+}
+
+@Dao
+interface WeeklySummaryDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(summary: WeeklySummaryEntity)
+
+    @Query("SELECT * FROM weekly_summary WHERE week = :week")
+    suspend fun get(week: String): WeeklySummaryEntity?
+
+    @Query("SELECT * FROM weekly_summary ORDER BY week DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 12): List<WeeklySummaryEntity>
 }
 
 @Dao
@@ -296,6 +367,30 @@ interface AppClassificationDao {
 }
 
 @Dao
+interface BaselineDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(baseline: BaselineEntity)
+
+    @Query("SELECT * FROM baselines WHERE metricName = :metricName LIMIT 1")
+    suspend fun getByMetric(userId: String, metricName: String): BaselineEntity?
+
+    @Query("SELECT * FROM baselines")
+    suspend fun getAll(): List<BaselineEntity>
+}
+
+@Dao
+interface OutcomeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(outcome: OutcomeEntity)
+
+    @Query("SELECT * FROM outcomes WHERE interventionId = :interventionId")
+    suspend fun getByIntervention(interventionId: String): List<OutcomeEntity>
+
+    @Query("SELECT * FROM outcomes ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 50): List<OutcomeEntity>
+}
+
+@Dao
 interface PermissionStateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(state: PermissionStateEntity)
@@ -313,7 +408,10 @@ interface PermissionStateDao {
         EventEntity::class,
         CurrentContextEntity::class,
         TimelineSegmentEntity::class,
+        FiveMinuteSummaryEntity::class,
+        HourlySummaryEntity::class,
         DailySummaryEntity::class,
+        WeeklySummaryEntity::class,
         AgentObservationEntity::class,
         InterventionEntity::class,
         UserFeedbackEntity::class,
@@ -322,8 +420,9 @@ interface PermissionStateDao {
         BaselineEntity::class,
         AppClassificationEntity::class,
         PermissionStateEntity::class,
+        OutcomeEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -331,7 +430,12 @@ abstract class AndrometryDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun contextDao(): ContextDao
     abstract fun segmentDao(): SegmentDao
+    abstract fun fiveMinuteSummaryDao(): FiveMinuteSummaryDao
+    abstract fun hourlySummaryDao(): HourlySummaryDao
     abstract fun dailySummaryDao(): DailySummaryDao
+    abstract fun weeklySummaryDao(): WeeklySummaryDao
+    abstract fun baselineDao(): BaselineDao
+    abstract fun outcomeDao(): OutcomeDao
     abstract fun observationDao(): ObservationDao
     abstract fun interventionDao(): InterventionDao
     abstract fun feedbackDao(): FeedbackDao
