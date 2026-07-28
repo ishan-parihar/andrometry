@@ -291,7 +291,6 @@ interface DailySummaryDao {
     suspend fun get(date: String): DailySummaryEntity?
 
     @Query("SELECT * FROM daily_summary WHERE date = :date")
-    suspend fun getByDate(date: String): DailySummaryEntity?
 
     @Query("SELECT * FROM daily_summary ORDER BY date DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 7): List<DailySummaryEntity>
@@ -390,7 +389,7 @@ interface BaselineDao {
     suspend fun upsert(baseline: BaselineEntity)
 
     @Query("SELECT * FROM baselines WHERE metricName = :metricName LIMIT 1")
-    suspend fun getByMetric(userId: String, metricName: String): BaselineEntity?
+    suspend fun getByName(metricName: String): BaselineEntity?
 
     @Query("SELECT * FROM baselines")
     suspend fun getAll(): List<BaselineEntity>

@@ -74,7 +74,7 @@ class WeeklySummaryEngine @Inject constructor(
             }.time
             val dateStr = tzFormat.format(day)
 
-            val dailySummary = database.dailySummaryDao().getByDate(dateStr)
+            val dailySummary = database.dailySummaryDao().get(dateStr)
             if (dailySummary != null) {
                 try {
                     val data = Gson().fromJson(dailySummary.summary, Map::class.java) as? Map<String, Any> ?: continue

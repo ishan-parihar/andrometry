@@ -98,7 +98,7 @@ class BaselineEngine @Inject constructor(
         currentValue: Double,
         userId: String = "primary"
     ): BaselineComparison {
-        val baseline = database.baselineDao().getByMetric(userId, metricName)
+        val baseline = database.baselineDao().getByName(metricName)
             ?: return BaselineComparison(
                 metricName = metricName,
                 currentValue = currentValue,
