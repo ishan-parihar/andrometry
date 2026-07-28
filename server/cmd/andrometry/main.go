@@ -97,6 +97,7 @@ func main() {
 	// Baselines
 	mux.Handle("GET /v1/baselines", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.GetBaselines))))
 	mux.Handle("POST /v1/baselines", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostBaseline))))
+	mux.Handle("DELETE /v1/baselines/", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.DeleteBaseline))))
 
 	// User corrections
 	mux.Handle("GET /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.GetUserCorrections))))

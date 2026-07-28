@@ -701,6 +701,213 @@ paths:
         "200":
           description: Pending interventions
 
+  /v1/summary/five_minute:
+    get:
+      summary: Get five-minute summaries
+      tags: [Summaries]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Five-minute summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summaries:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/summary/hourly:
+    get:
+      summary: Get hourly summaries
+      tags: [Summaries]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Hourly summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summaries:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/baselines:
+    get:
+      summary: Get baselines
+      tags: [Baselines]
+      responses:
+        "200":
+          description: Baselines list
+    post:
+      summary: Upsert a baseline
+      tags: [Baselines]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                baseline_id:
+                  type: string
+                metric_name:
+                  type: string
+                window_days:
+                  type: integer
+                  default: 7
+                value:
+                  type: number
+              required: [metric_name, value]
+      responses:
+        "201":
+          description: Baseline created
+
+  /v1/baselines/{id}:
+    delete:
+      summary: Delete a baseline
+      tags: [Baselines]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Baseline deleted
+
+  /v1/corrections:
+    get:
+      summary: Get user corrections
+      tags: [Corrections]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Corrections list
+    post:
+      summary: Submit a user correction
+      tags: [Corrections]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                correction_type:
+                  type: string
+                  enum: [label, split, delete, merge, move]
+                segment_id:
+                  type: string
+                new_label:
+                  type: string
+                split_at:
+                  type: string
+                reason:
+                  type: string
+                metadata:
+                  type: object
+              required: [correction_type, segment_id]
+      responses:
+        "201":
+          description: Correction recorded
+
+  /v1/corrections/{id}:
+    delete:
+      summary: Delete a user correction
+      tags: [Corrections]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Correction deleted
+
+  /v1/stream:
+    get:
+      summary: SSE stream for real-time context updates
+      tags: [Streaming]
+      responses:
+        "200":
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /v1/privacy/sensitive-mode:
+    get:
+      summary: Get sensitive mode status
+      tags: [Privacy]
+      responses:
+        "200":
+          description: Sensitive mode status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sensitive_mode_enabled:
+                    type: boolean
+    post:
+      summary: Set sensitive mode
+      tags: [Privacy]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active:
+                  type: boolean
+              required: [active]
+      responses:
+        "200":
+          description: Sensitive mode updated
+
+  /v1/privacy/wipe:
+    post:
+      summary: Wipe all user data (kill switch)
+      tags: [Privacy]
+      responses:
+        "200":
+          description: All data wiped
+
   /v1/audit:
     get:
       summary: Get audit log
