@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
+import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import dagger.hilt.android.AndroidEntryPoint
@@ -19,11 +19,14 @@ import javax.inject.Inject
 /**
  * Collects screen on/off and unlock events via broadcast receivers.
  * These are event-driven (Tier 0) — extremely low battery impact.
+ *
+ * Uses @AndroidEntryPoint for Hilt injection in BroadcastReceiver.
  */
 @AndroidEntryPoint
 class ScreenCollector : BroadcastReceiver() {
 
     @Inject lateinit var sequenceGenerator: SequenceGenerator
+    @Inject lateinit var database: AndrometryDatabase
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -66,10 +69,7 @@ class ScreenCollector : BroadcastReceiver() {
             payload = com.google.gson.Gson().toJson(payload)
         )
 
-        // Store event — will be picked up by sync worker
-        // Database injection happens through the Hilt-aware Application
-        val app = context.applicationContext as com.andrometry.AndrometryApp
-        app.database.eventDao().insert(event)
+        database.eventDao().insert(event)
     }
 
     private fun getDeviceId(context: Context): String {

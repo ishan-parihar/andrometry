@@ -177,7 +177,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 	// Upsert context
 	if len(batch.Context) > 0 {
 		ctxBytes, _ := json.Marshal(batch.Context)
-		etag := fmt.Sprintf("%x", md5Sum(ctxBytes))
+		etag := fmt.Sprintf("%x", etagHash(ctxBytes))
 		_ = h.DB.UpsertContext(&models.CurrentContext{
 			DeviceID:  batch.DeviceID,
 			UserID:    uid,
@@ -940,7 +940,7 @@ func currentWeek() string {
 	return fmt.Sprintf("%d-W%02d", time.Now().Year(), w)
 }
 
-func md5Sum(data []byte) [16]byte {
+func etagHash(data []byte) [16]byte {
 	// Simple non-cryptographic hash for ETag generation
 	var result [16]byte
 	hash := uint64(0xcbf29ce484222325) // FNV-1a offset basis
