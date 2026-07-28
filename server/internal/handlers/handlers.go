@@ -894,11 +894,10 @@ func (h *Handler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 // GetFiveMinuteSummaries handles GET /v1/summary/five_minute.
 func (h *Handler) GetFiveMinuteSummaries(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
-	_ = uid
 	from := queryParam(r, "from", time.Now().UTC().Add(-2*time.Hour).Format(time.RFC3339))
 	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
 
-	summaries, err := h.DB.GetFiveMinuteSummaries(from, to)
+	summaries, err := h.DB.GetFiveMinuteSummaries(uid, from, to)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to query five-minute summaries")
 		return
@@ -915,11 +914,10 @@ func (h *Handler) GetFiveMinuteSummaries(w http.ResponseWriter, r *http.Request)
 // GetHourlySummaries handles GET /v1/summary/hourly.
 func (h *Handler) GetHourlySummaries(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
-	_ = uid
 	from := queryParam(r, "from", time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339))
 	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
 
-	summaries, err := h.DB.GetHourlySummaries(from, to)
+	summaries, err := h.DB.GetHourlySummaries(uid, from, to)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to query hourly summaries")
 		return

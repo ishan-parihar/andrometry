@@ -734,7 +734,7 @@ func TestFiveMinuteSummary_roundTrip(t *testing.T) {
 	h, db := setupTestHandler(t)
 
 	// Insert five-minute summary directly via store
-	err := db.UpsertFiveMinuteSummary(
+	err := db.UpsertFiveMinuteSummary("primary", 
 		"2026-01-01T10:00:00Z",
 		"2026-01-01T10:05:00Z",
 		`{"activity":"deep_work","minutes":5}`,
@@ -773,7 +773,7 @@ func TestHourlySummary_roundTrip(t *testing.T) {
 	h, db := setupTestHandler(t)
 
 	// Insert hourly summary directly via store
-	err := db.UpsertHourlySummary(
+	err := db.UpsertHourlySummary("primary", 
 		"2026-01-01T10:00:00Z",
 		"2026-01-01T11:00:00Z",
 		`{"focus_minutes":42,"meeting_minutes":15}`,

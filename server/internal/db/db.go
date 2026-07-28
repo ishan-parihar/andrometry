@@ -129,17 +129,21 @@ func (db *DB) migrate() error {
 		)`,
 		// Five-minute summary
 		`CREATE TABLE IF NOT EXISTS five_minute_summary (
-			start_time TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'primary',
+			start_time TEXT NOT NULL,
 			end_time TEXT NOT NULL,
 			summary TEXT NOT NULL DEFAULT '{}',
-			sync_state TEXT NOT NULL DEFAULT 'pending'
+			sync_state TEXT NOT NULL DEFAULT 'pending',
+			PRIMARY KEY (user_id, start_time)
 		)`,
 		// Hourly summary
 		`CREATE TABLE IF NOT EXISTS hourly_summary (
-			start_time TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'primary',
+			start_time TEXT NOT NULL,
 			end_time TEXT NOT NULL,
 			summary TEXT NOT NULL DEFAULT '{}',
-			sync_state TEXT NOT NULL DEFAULT 'pending'
+			sync_state TEXT NOT NULL DEFAULT 'pending',
+			PRIMARY KEY (user_id, start_time)
 		)`,
 		// Agent observations
 		`CREATE TABLE IF NOT EXISTS agent_observations (

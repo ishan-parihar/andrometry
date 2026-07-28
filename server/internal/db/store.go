@@ -717,26 +717,26 @@ func (db *DB) DetectMissingSequences(deviceID string, from, to int64) []int64 {
 }
 
 // UpsertFiveMinuteSummary upserts a five-minute summary.
-func (db *DB) UpsertFiveMinuteSummary(startTime, endTime, summaryJSON string) error {
+func (db *DB) UpsertFiveMinuteSummary(userID, startTime, endTime, summaryJSON string) error {
 	_, err := db.Exec(`
-		INSERT INTO five_minute_summary (start_time, end_time, summary, sync_state)
-		VALUES (?, ?, ?, 'pending')
-		ON CONFLICT(start_time) DO UPDATE SET
+		INSERT INTO five_minute_summary (user_id, start_time, end_time, summary, sync_state)
+		VALUES (?, ?, ?, ?, 'pending')
+		ON CONFLICT(user_id, start_time) DO UPDATE SET
 			end_time = excluded.end_time,
 			summary = excluded.summary,
 			sync_state = 'pending'
-	`, startTime, endTime, summaryJSON)
+	`, userID, startTime, endTime, summaryJSON)
 	return err
 }
 
-// GetFiveMinuteSummaries retrieves five-minute summaries in a time range.
-func (db *DB) GetFiveMinuteSummaries(from, to string) ([]map[string]string, error) {
+// GetFiveMinuteSummaries retrieves five-minute summaries in a time range for a user.
+func (db *DB) GetFiveMinuteSummaries(userID, from, to string) ([]map[string]string, error) {
 	rows, err := db.Query(`
 		SELECT start_time, end_time, summary
 		FROM five_minute_summary
-		WHERE start_time >= ? AND start_time <= ?
+		WHERE user_id = ? AND start_time >= ? AND start_time <= ?
 		ORDER BY start_time ASC
-	`, from, to)
+	`, userID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -757,26 +757,26 @@ func (db *DB) GetFiveMinuteSummaries(from, to string) ([]map[string]string, erro
 }
 
 // UpsertHourlySummary upserts an hourly summary.
-func (db *DB) UpsertHourlySummary(startTime, endTime, summaryJSON string) error {
+func (db *DB) UpsertHourlySummary(userID, startTime, endTime, summaryJSON string) error {
 	_, err := db.Exec(`
-		INSERT INTO hourly_summary (start_time, end_time, summary, sync_state)
-		VALUES (?, ?, ?, 'pending')
-		ON CONFLICT(start_time) DO UPDATE SET
+		INSERT INTO hourly_summary (user_id, start_time, end_time, summary, sync_state)
+		VALUES (?, ?, ?, ?, 'pending')
+		ON CONFLICT(user_id, start_time) DO UPDATE SET
 			end_time = excluded.end_time,
 			summary = excluded.summary,
 			sync_state = 'pending'
-	`, startTime, endTime, summaryJSON)
+	`, userID, startTime, endTime, summaryJSON)
 	return err
 }
 
-// GetHourlySummaries retrieves hourly summaries in a time range.
-func (db *DB) GetHourlySummaries(from, to string) ([]map[string]string, error) {
+// GetHourlySummaries retrieves hourly summaries in a time range for a user.
+func (db *DB) GetHourlySummaries(userID, from, to string) ([]map[string]string, error) {
 	rows, err := db.Query(`
 		SELECT start_time, end_time, summary
 		FROM hourly_summary
-		WHERE start_time >= ? AND start_time <= ?
+		WHERE user_id = ? AND start_time >= ? AND start_time <= ?
 		ORDER BY start_time ASC
-	`, from, to)
+	`, userID, from, to)
 	if err != nil {
 		return nil, err
 	}
