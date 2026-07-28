@@ -595,6 +595,33 @@ server.tool(
 );
 
 server.tool(
+  "submit_feedback",
+  "Submit user feedback about an intervention, observation, or context",
+  {
+    target_type: z.enum(["intervention", "observation", "context", "segment", "habit", "goal"]).describe("What the feedback is about"),
+    target_id: z.string().describe("ID of the target being rated"),
+    feedback_type: z.enum(["helpful", "not_helpful", "annoying", "too_late", "too_early", "correct", "incorrect", "accepted", "dismissed"]).describe("Type of feedback"),
+    rating: z.number().min(1).max(5).optional().describe("Rating 1-5"),
+    note: z.string().optional().describe("Optional note about the feedback"),
+  },
+  async ({ target_type, target_id, feedback_type, rating, note }) => {
+    const data = await relayFetch("/v1/feedback", {
+      method: "POST",
+      body: JSON.stringify({
+        target_type,
+        target_id,
+        feedback_type,
+        rating: rating || 0,
+        note: note || "",
+      }),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
   "get_feedback",
   "Get user feedback, optionally filtered by target",
   {

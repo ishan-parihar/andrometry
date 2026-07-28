@@ -1,0 +1,32 @@
+# Andrometry Relay Server
+[Unit]
+Description=Andrometry Personal Context Relay
+After=network.target
+
+[Service]
+Type=simple
+User=andrometry
+Group=andrometry
+ExecStart=/usr/local/bin/andrometry --db /var/lib/andrometry/andrometry.db --port 8420
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=andrometry
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/andrometry
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

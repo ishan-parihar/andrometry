@@ -1,0 +1,39 @@
+# Andrometry Relay Server Configuration
+# §29 Example Server Config
+
+[server]
+address = "0.0.0.0:8420"
+database_path = "/var/lib/andrometry/andrometry.db"
+
+[auth]
+bootstrap_token = ""  # Set once on first run, then remove
+
+[sync]
+max_batch_events = 500
+max_batch_segments = 100
+max_batch_summaries = 50
+compression_enabled = true
+
+[retention]
+raw_events_days = 30
+timeline_segments_days = 365
+daily_summaries_days = -1        # indefinite
+agent_observations_days = 90
+interventions_days = 90
+audit_log_days = 365
+
+[policy]
+max_interventions_per_day = 6
+cooldown_minutes = 45
+quiet_hours_start = "22:30"
+quiet_hours_end = "07:30"
+min_confidence_for_nudge = 0.65
+suppress_after_repeated_dismissals = true
+allow_high_severity_override = true
+
+[streaming]
+sse_enabled = true
+sse_poll_interval_seconds = 5
+
+[mcp]
+enabled = true

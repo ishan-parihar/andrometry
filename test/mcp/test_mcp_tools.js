@@ -331,6 +331,16 @@ const mcpTools = [
     }
   },
   {
+    name: "submit_feedback",
+    description: "Submit user feedback",
+    endpoint: "/v1/feedback",
+    method: "POST",
+    requiredFields: ["feedback_id"],
+    validates: (data) => {
+      assert(data.feedback_id, "Must return feedback_id");
+    }
+  },
+  {
     name: "get_feedback",
     description: "Get user feedback",
     endpoint: "/v1/feedback",
@@ -562,7 +572,7 @@ const mcpTools = [
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 34, `Expected 34 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 35, `Expected 35 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields

@@ -1,0 +1,40 @@
+# Caddyfile for Andrometry Relay
+# §28 Server Deployment Example
+#
+# Install Caddy: curl -fsSL https://caddyserver.com/api/download?os=linux&arch=amd64 -o /usr/bin/caddy && chmod +x /usr/bin/caddy
+
+:443 {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
+
+    # Note: Rate limiting is handled at the Go level (middleware)
+    # For Caddy-level rate limiting, install: xcaddy build --with github.com/mholt/caddy-ratelimit
+
+    # Reverse proxy to Go relay
+    handle /v1/* {
+        reverse_proxy localhost:8420 {
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # Health check (no auth)
+    handle /v1/health* {
+        reverse_proxy localhost:8420
+    }
+
+    # Deny everything else
+    handle {
+        respond "Not Found" 404
+    }
+}
