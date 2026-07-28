@@ -235,22 +235,23 @@ private suspend fun generateJsonExport(database: AndrometryDatabase): String {
     val outcomes = database.outcomeDao().getRecent(500)
     val observations = database.observationDao().getRecent(500)
     val interventions = database.interventionDao().getAll(500)
+    val feedback = database.feedbackDao().getAll(500)
+    val dailySummaries = database.dailySummaryDao().getRecent(90)
 
+    val gson = com.google.gson.Gson()
     return """
     {
         "export_version": "1.0",
         "exported_at": "${SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())}",
-        "events_count": ${events.size},
-        "events": ${events.map { mapOf("id" to it.eventId, "type" to it.eventType, "timestamp" to it.timestamp, "payload" to it.payload) }},
-        "segments_count": ${segments.size},
-        "segments": ${segments.map { mapOf("id" to it.segmentId, "type" to it.segmentType, "start" to it.startTime, "end" to it.endTime, "label" to it.label) }},
-        "habits_count": ${habits.size},
-        "habits": ${habits.map { mapOf("id" to it.habitId, "type" to it.habitType, "status" to it.status, "streak" to it.streakDays) }},
-        "goals_count": ${goals.size},
-        "goals": ${goals.map { mapOf("id" to it.goalId, "type" to it.goalType, "status" to it.status) }},
-        "outcomes_count": ${outcomes.size},
-        "interventions_count": ${interventions.size},
-        "observations_count": ${observations.size}
+        "events": {"count": ${events.size}, "data": ${gson.toJson(events.map { mapOf("id" to it.eventId, "type" to it.eventType, "timestamp" to it.timestamp, "payload" to it.payload) })}},
+        "segments": {"count": ${segments.size}, "data": ${gson.toJson(segments.map { mapOf("id" to it.segmentId, "type" to it.segmentType, "start" to it.startTime, "end" to it.endTime, "label" to it.label) })}},
+        "habits": {"count": ${habits.size}, "data": ${gson.toJson(habits.map { mapOf("id" to it.habitId, "type" to it.habitType, "status" to it.status, "streak" to it.streakDays) })}},
+        "goals": {"count": ${goals.size}, "data": ${gson.toJson(goals.map { mapOf("id" to it.goalId, "type" to it.goalType, "status" to it.status) })}},
+        "outcomes": {"count": ${outcomes.size}, "data": ${gson.toJson(outcomes.map { mapOf("id" to it.outcomeId, "intervention_id" to it.interventionId, "type" to it.outcomeType, "timestamp" to it.timestamp, "score" to it.effectivenessScore) })}},
+        "interventions": {"count": ${interventions.size}, "data": ${gson.toJson(interventions.map { mapOf("id" to it.interventionId, "type" to it.interventionType, "status" to it.status, "timestamp" to it.timestamp) })}},
+        "observations": {"count": ${observations.size}, "data": ${gson.toJson(observations.map { mapOf("id" to it.observationId, "type" to it.observationType, "severity" to it.severity, "timestamp" to it.timestamp) })}},
+        "feedback": {"count": ${feedback.size}, "data": ${gson.toJson(feedback.map { mapOf("id" to it.feedbackId, "target" to it.targetType, "type" to it.feedbackType, "timestamp" to it.timestamp) })}},
+        "daily_summaries": {"count": ${dailySummaries.size}, "data": ${gson.toJson(dailySummaries.map { mapOf("date" to it.date, "timezone" to it.timezone) })}}
     }
     """.trimIndent()
 }

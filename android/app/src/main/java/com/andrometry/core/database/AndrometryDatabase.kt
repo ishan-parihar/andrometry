@@ -326,6 +326,9 @@ interface FeedbackDao {
 
     @Query("SELECT * FROM user_feedback WHERE targetType = :targetType AND targetId = :targetId")
     suspend fun getForTarget(targetType: String, targetId: String): List<UserFeedbackEntity>
+
+    @Query("SELECT * FROM user_feedback ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getAll(limit: Int = 500): List<UserFeedbackEntity>
 }
 
 @Dao
