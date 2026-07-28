@@ -211,9 +211,9 @@ func (db *DB) migrate() error {
 			window_days INTEGER NOT NULL DEFAULT 7,
 			value REAL NOT NULL,
 			computed_at TEXT NOT NULL DEFAULT (datetime('now')),
-			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(user_id, metric_name)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_baselines_user_metric ON baselines(user_id, metric_name)`,
 		// Outcomes
 		`CREATE TABLE IF NOT EXISTS outcomes (
 			outcome_id TEXT PRIMARY KEY,

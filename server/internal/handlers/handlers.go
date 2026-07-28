@@ -988,6 +988,25 @@ func (h *Handler) PostBaseline(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]string{"baseline_id": req.BaselineID, "status": "created"})
 }
 
+// DeleteBaseline handles DELETE /v1/baselines/:id.
+func (h *Handler) DeleteBaseline(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		respondError(w, http.StatusBadRequest, "missing baseline ID")
+		return
+	}
+	baselineID := parts[4]
+	uid := userID(r)
+
+	if err := h.DB.DeleteBaseline(uid, baselineID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete baseline")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "delete_baseline", "baseline", baselineID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"baseline_id": baselineID, "status": "deleted"})
+}
+
 // --- User Corrections ---
 
 // PostUserCorrection handles POST /v1/corrections.
@@ -1026,21 +1045,22 @@ func (h *Handler) PostUserCorrection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If label correction, update the segment
+	segmentUpdated := false
 	if correction.CorrectionType == "label" && correction.SegmentID != "" && correction.NewLabel != "" {
-		// Update segment label via the existing upsert mechanism
 		segment, err := h.DB.GetSegmentByID(correction.SegmentID)
 		if err == nil && segment != nil {
 			segment.Label = correction.NewLabel
 			segment.Version++
 			segment.RevisionReason = &correction.Reason
 			_ = h.DB.UpsertSegment(segment)
+			segmentUpdated = true
 		}
 	}
 
 	audit.Log(h.DB, uid, actorType(r), actorID(r), "user_correction", "segment", correction.SegmentID,
-		fmt.Sprintf(`{"type":"%s"}`, correction.CorrectionType))
+		fmt.Sprintf(`{"type":"%s","segment_updated":%t}`, correction.CorrectionType, segmentUpdated))
 
-	respondJSON(w, http.StatusCreated, map[string]string{"status": "created"})
+	respondJSON(w, http.StatusCreated, map[string]interface{}{"status": "created", "segment_updated": segmentUpdated})
 }
 
 // --- Health ---

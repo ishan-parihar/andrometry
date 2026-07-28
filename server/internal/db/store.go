@@ -797,28 +797,15 @@ func (db *DB) GetHourlySummaries(from, to string) ([]map[string]string, error) {
 }
 
 // UpsertBaseline upserts a baseline metric, ensuring one baseline per (user_id, metric_name).
+// Uses ON CONFLICT for atomic upsert (no TOCTOU race).
 func (db *DB) UpsertBaseline(b *models.Baseline) error {
-	// Try to find existing baseline for this user+metric
-	var existingID string
-	err := db.QueryRow(`
-		SELECT baseline_id FROM baselines
-		WHERE user_id = ? AND metric_name = ?
-		LIMIT 1
-	`, b.UserID, b.MetricName).Scan(&existingID)
-
-	if err == nil && existingID != "" {
-		// Update existing
-		_, err = db.Exec(`
-			UPDATE baselines SET value = ?, window_days = ?, computed_at = datetime('now')
-			WHERE baseline_id = ?
-		`, b.Value, b.WindowDays, existingID)
-		return err
-	}
-
-	// Insert new
-	_, err = db.Exec(`
+	_, err := db.Exec(`
 		INSERT INTO baselines (baseline_id, user_id, metric_name, window_days, value, computed_at)
 		VALUES (?, ?, ?, ?, ?, datetime('now'))
+		ON CONFLICT(user_id, metric_name) DO UPDATE SET
+			value = excluded.value,
+			window_days = excluded.window_days,
+			computed_at = datetime('now')
 	`, b.BaselineID, b.UserID, b.MetricName, b.WindowDays, b.Value)
 	return err
 }
@@ -854,5 +841,14 @@ func (db *DB) InsertUserCorrection(userID, correctionJSON string) error {
 		INSERT INTO audit_log (audit_id, user_id, actor_type, actor_id, action, target_type, metadata)
 		VALUES (?, ?, 'user', ?, 'user_correction', 'segment', ?)
 	`, uuid.New().String(), userID, userID, correctionJSON)
+	return err
+}
+
+// DeleteBaseline deletes a baseline metric by ID for a user.
+func (db *DB) DeleteBaseline(userID, baselineID string) error {
+	_, err := db.Exec(`
+		DELETE FROM baselines
+		WHERE user_id = ? AND baseline_id = ?
+	`, userID, baselineID)
 	return err
 }

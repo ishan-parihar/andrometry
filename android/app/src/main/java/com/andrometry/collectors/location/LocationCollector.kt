@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
@@ -14,6 +15,7 @@ import com.google.android.gms.location.*
 import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +31,8 @@ import javax.inject.Singleton
 @Singleton
 class LocationCollector @Inject constructor(
     private val sequenceGenerator: SequenceGenerator,
-    private val database: AndrometryDatabase
+    private val database: AndrometryDatabase,
+    private val sensitiveModeManager: SensitiveModeManager
 ) {
     data class KnownPlace(
         val name: String,
@@ -141,8 +144,10 @@ class LocationCollector @Inject constructor(
             changed = placeChanged
         )
 
+        // §33: Redact location when sensitive mode active
+        val redactLocation = runBlocking { sensitiveModeManager.shouldRedactLocation() }
         val payload = mapOf(
-            "place" to locationContext.place,
+            "place" to if (redactLocation) "[redacted]" else locationContext.place,
             "confidence" to locationContext.confidence,
             "movement" to locationContext.movement,
             "changed" to locationContext.changed

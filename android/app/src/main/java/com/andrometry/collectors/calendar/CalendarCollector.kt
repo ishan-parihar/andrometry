@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import android.os.Handler
 import android.os.Looper
+import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
@@ -30,6 +31,7 @@ class CalendarCollector : ContentObserver(Handler(Looper.getMainLooper())) {
 
     @Inject lateinit var sequenceGenerator: SequenceGenerator
     @Inject lateinit var database: AndrometryDatabase
+    @Inject lateinit var sensitiveModeManager: SensitiveModeManager
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var context: Context? = null
@@ -114,8 +116,10 @@ class CalendarCollector : ContentObserver(Handler(Looper.getMainLooper())) {
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date())
 
+        // §33: Redact calendar titles when sensitive mode active
+        val redactCalendar = sensitiveModeManager.shouldRedactCalendar()
         val payload = mapOf(
-            "current_event" to currentEvent,
+            "current_event" to if (redactCalendar && currentEvent == "meeting") "busy" else currentEvent,
             "next_event_minutes" to nextEventMinutes,
             "busy_until" to busyUntil
         )
