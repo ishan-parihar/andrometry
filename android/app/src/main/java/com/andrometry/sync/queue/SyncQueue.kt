@@ -187,26 +187,3 @@ class SyncQueue @Inject constructor(
     )
 }
 
-/**
- * WorkManager worker for periodic sync.
- */
-class SyncWorker(
-    appContext: Context,
-    params: WorkerParameters
-) : CoroutineWorker(appContext, params) {
-
-    override suspend fun doWork(): Result {
-        return try {
-            val app = applicationContext as com.andrometry.AndrometryApp
-            val syncResult = app.syncQueue.syncPending()
-
-            if (syncResult.error != null) {
-                Result.retry()
-            } else {
-                Result.success()
-            }
-        } catch (e: Exception) {
-            Result.retry()
-        }
-    }
-}

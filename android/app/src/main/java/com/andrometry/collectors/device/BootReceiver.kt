@@ -3,6 +3,7 @@ package com.andrometry.collectors.device
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.sync.queue.SyncQueue
@@ -25,7 +26,7 @@ import javax.inject.Inject
 class BootReceiver : BroadcastReceiver() {
 
     @Inject lateinit var sequenceGenerator: SequenceGenerator
-    @Inject lateinit var database: com.andrometry.core.database.AndrometryDatabase
+    @Inject lateinit var database: AndrometryDatabase
     @Inject lateinit var syncQueue: SyncQueue
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
