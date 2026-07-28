@@ -2,7 +2,6 @@ package com.andrometry
 
 import android.app.Application
 import com.andrometry.core.database.AndrometryDatabase
-import com.andrometry.core.di.AppModule
 import com.andrometry.sync.queue.SyncQueue
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -10,8 +9,8 @@ import javax.inject.Inject
 /**
  * Application class with Hilt dependency injection.
  *
- * Fixed: ScreenCollector now uses @AndroidEntryPoint, so we register it
- * via a delegating receiver wrapper instead of direct instantiation.
+ * ScreenReceiver is declared in AndroidManifest.xml and gets Hilt injection
+ * automatically via @AndroidEntryPoint. No manual registration needed.
  */
 @HiltAndroidApp
 class AndrometryApp : Application() {

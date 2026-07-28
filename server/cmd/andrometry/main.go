@@ -91,6 +91,11 @@ func main() {
 	// Audit log
 	mux.Handle("GET /v1/audit", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.GetAuditLog))))
 
+	// Privacy / Sensitive mode
+	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
+	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))
+	mux.Handle("POST /v1/privacy/wipe", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.WipeData))))
+
 	// Apply global middleware
 	handler := middleware.CORS(middleware.Logging(mux))
 

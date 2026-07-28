@@ -8,12 +8,12 @@ import (
 
 // RetentionPolicy defines data lifecycle rules.
 type RetentionPolicy struct {
-	RawEventsDays        int `json:"raw_events_days"`
-	TimelineSegmentsDays int `json:"timeline_segments_days"`
-	DailySummariesDays   int `json:"daily_summaries_days"`
+	RawEventsDays         int `json:"raw_events_days"`
+	TimelineSegmentsDays  int `json:"timeline_segments_days"`
+	DailySummariesDays    int `json:"daily_summaries_days"` // -1 = indefinite
 	AgentObservationsDays int `json:"agent_observations_days"`
-	InterventionsDays    int `json:"interventions_days"`
-	AuditLogDays         int `json:"audit_log_days"`
+	InterventionsDays     int `json:"interventions_days"`
+	AuditLogDays          int `json:"audit_log_days"`
 }
 
 // DefaultRetentionPolicy returns the recommended retention policy.
@@ -34,52 +34,88 @@ func MarshalRetentionPolicy(rp RetentionPolicy) string {
 	return string(b)
 }
 
-// EnforceRetentionPolicy runs the retention cleanup based on policy.
+// UnmarshalRetentionPolicy deserializes from JSON.
+func UnmarshalRetentionPolicy(data string) RetentionPolicy {
+	var rp RetentionPolicy
+	if data == "" {
+		return DefaultRetentionPolicy()
+	}
+	json.Unmarshal([]byte(data), &rp)
+	return rp
+}
+
+// EnforceRetentionPolicy runs all retention cleanup jobs.
 func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
-	log.Printf("[retention] enforcing retention policy: raw=%dd, segments=%dd, observations=%dd, interventions=%dd, audit=%dd",
+	log.Printf("[retention] enforcing policy: raw=%dd, segments=%dd, observations=%dd, interventions=%dd, audit=%dd",
 		policy.RawEventsDays, policy.TimelineSegmentsDays,
 		policy.AgentObservationsDays, policy.InterventionsDays, policy.AuditLogDays)
 
 	if policy.RawEventsDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.RawEventsDays).Format("2006-01-02T15:04:05Z")
-		result, _ := db.Exec("DELETE FROM events WHERE received_at < ?", cutoff)
-		if rows, _ := result.RowsAffected(); rows > 0 {
-			log.Printf("[retention] pruned %d raw events", rows)
+		if result, err := db.Exec("DELETE FROM events WHERE received_at < ?", cutoff); err == nil {
+			if rows, _ := result.RowsAffected(); rows > 0 {
+				log.Printf("[retention] pruned %d raw events", rows)
+			}
 		}
 	}
 
 	if policy.TimelineSegmentsDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.TimelineSegmentsDays).Format("2006-01-02T15:04:05Z")
-		result, _ := db.Exec("DELETE FROM timeline_segments WHERE received_at < ?", cutoff)
-		if rows, _ := result.RowsAffected(); rows > 0 {
-			log.Printf("[retention] pruned %d timeline segments", rows)
+		if result, err := db.Exec("DELETE FROM timeline_segments WHERE received_at < ?", cutoff); err == nil {
+			if rows, _ := result.RowsAffected(); rows > 0 {
+				log.Printf("[retention] pruned %d timeline segments", rows)
+			}
 		}
 	}
 
 	if policy.AgentObservationsDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.AgentObservationsDays).Format("2006-01-02T15:04:05Z")
-		result, _ := db.Exec("DELETE FROM agent_observations WHERE created_at < ?", cutoff)
-		if rows, _ := result.RowsAffected(); rows > 0 {
-			log.Printf("[retention] pruned %d agent observations", rows)
+		if result, err := db.Exec("DELETE FROM agent_observations WHERE created_at < ?", cutoff); err == nil {
+			if rows, _ := result.RowsAffected(); rows > 0 {
+				log.Printf("[retention] pruned %d agent observations", rows)
+			}
 		}
 	}
 
 	if policy.InterventionsDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.InterventionsDays).Format("2006-01-02T15:04:05Z")
-		result, _ := db.Exec("DELETE FROM interventions WHERE created_at < ?", cutoff)
-		if rows, _ := result.RowsAffected(); rows > 0 {
-			log.Printf("[retention] pruned %d interventions", rows)
+		if result, err := db.Exec("DELETE FROM interventions WHERE created_at < ?", cutoff); err == nil {
+			if rows, _ := result.RowsAffected(); rows > 0 {
+				log.Printf("[retention] pruned %d interventions", rows)
+			}
 		}
 	}
 
 	if policy.AuditLogDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.AuditLogDays).Format("2006-01-02T15:04:05Z")
-		result, _ := db.Exec("DELETE FROM audit_log WHERE created_at < ?", cutoff)
-		if rows, _ := result.RowsAffected(); rows > 0 {
-			log.Printf("[retention] pruned %d audit log entries", rows)
+		if result, err := db.Exec("DELETE FROM audit_log WHERE created_at < ?", cutoff); err == nil {
+			if rows, _ := result.RowsAffected(); rows > 0 {
+				log.Printf("[retention] pruned %d audit entries", rows)
+			}
 		}
 	}
 
 	log.Println("[retention] policy enforcement complete")
+	return nil
+}
+
+// WipeUserData deletes all data for a user (kill switch).
+func (db *DB) WipeUserData(userID string) error {
+	log.Printf("[retention] wiping all data for user %s", userID)
+
+	tables := []string{
+		"events", "timeline_segments", "daily_summary", "weekly_summary",
+		"agent_observations", "interventions", "user_feedback",
+		"goals", "habits", "baselines", "outcomes", "audit_log",
+		"current_context", "five_minute_summary", "hourly_summary",
+	}
+
+	for _, table := range tables {
+		if _, err := db.Exec("DELETE FROM "+table+" WHERE user_id = ?", userID); err != nil {
+			log.Printf("[retention] warning: failed to wipe %s: %v", table, err)
+		}
+	}
+
+	log.Printf("[retention] data wipe complete for user %s", userID)
 	return nil
 }
