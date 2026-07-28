@@ -204,11 +204,11 @@ interface EventDao {
     suspend fun getPendingEvents(): List<EventEntity>
 
     @Query("UPDATE events SET syncState = 'uploaded' WHERE eventId IN (:ids)")
-    suspend fun markUploaded(ids: List<String>)
-
-    @Query("SELECT * FROM events WHERE timestamp >= :from AND timestamp <= :to ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun markUploaded(ids: List<String>)    @Query("SELECT * FROM events WHERE timestamp >= :from AND timestamp <= :to ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getEventsInRange(from: String, to: String, limit: Int = 200): List<EventEntity>
 
+    @Query("DELETE FROM events WHERE createdAt < datetime('now', '-14 days')")
+    suspend fun pruneOldEvents()
 
     @Query("SELECT MAX(sequence) FROM events WHERE deviceId = :deviceId")
     suspend fun getLastSequence(deviceId: String): Long?

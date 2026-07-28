@@ -94,6 +94,9 @@ class SyncWorker @AssistedInject constructor(
             database.eventDao().markUploaded(pendingEvents.map { it.eventId })
             database.segmentDao().markUploaded(pendingSegments.map { it.segmentId })
 
+            // §13.3 Data retention: prune raw events older than 14 days after successful sync
+            database.eventDao().pruneOldEvents()
+
             Result.success()
         } catch (e: Exception) {
             Result.retry()
