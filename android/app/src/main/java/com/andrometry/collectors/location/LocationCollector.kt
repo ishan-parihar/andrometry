@@ -79,7 +79,10 @@ class LocationCollector @Inject constructor(
             locationCallback = null
         }
         geofencingClient?.let { client ->
-            client.removeGeofences(knownPlaces.map { it.name })
+            val validNames = knownPlaces.filter { it.latitude != 0.0 || it.longitude != 0.0 }.map { it.name }
+            if (validNames.isNotEmpty()) {
+                client.removeGeofences(validNames)
+            }
         }
         lastLocation = null
         lastPlace = "unknown"

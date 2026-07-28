@@ -64,14 +64,16 @@ fun CurrentContextScreen() {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val activity = context["primary_activity"] as? String ?: "unknown"
+                    val actConf = (context["activity_confidence"] as? Double) ?: 0.0
                     Text(
-                        context["primary_activity"] as String,
+                        activity,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "Confidence: ${(context["activity_confidence"] as Double * 100).toInt()}%",
+                        "Confidence: ${(actConf * 100).toInt()}%",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -81,14 +83,16 @@ fun CurrentContextScreen() {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Location", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val place = context["place"] as? String ?: "unknown"
+                    val placeConf = (context["place_confidence"] as? Double) ?: 0.0
                     Text(
-                        context["place"] as String,
+                        place,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        "Confidence: ${(context["place_confidence"] as Double * 100).toInt()}%",
+                        "Confidence: ${(placeConf * 100).toInt()}%",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -98,18 +102,20 @@ fun CurrentContextScreen() {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Focus", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    val focusActive = context["focus_active"] as? Boolean ?: false
+                    val focusElapsed = (context["focus_minutes_elapsed"] as? Int) ?: 0
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Active")
                         Text(
-                            if (context["focus_active"] as Boolean) "YES" else "NO",
-                            color = if (context["focus_active"] as Boolean) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                            if (focusActive) "YES" else "NO",
+                            color = if (focusActive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Text("Elapsed: ${context["focus_minutes_elapsed"]} minutes")
+                    Text("Elapsed: $focusElapsed minutes")
                 }
             }
 
@@ -118,9 +124,9 @@ fun CurrentContextScreen() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Probabilities", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
-                    ProbabilityRow("Distraction", context["distraction_probability"] as Double)
-                    ProbabilityRow("Fatigue", context["fatigue_probability"] as Double)
-                    ProbabilityRow("Alignment", context["alignment_probability"] as Double)
+                    ProbabilityRow("Distraction", (context["distraction_probability"] as? Double) ?: 0.0)
+                    ProbabilityRow("Fatigue", (context["fatigue_probability"] as? Double) ?: 0.0)
+                    ProbabilityRow("Alignment", (context["alignment_probability"] as? Double) ?: 0.0)
                 }
             }
 
@@ -129,19 +135,21 @@ fun CurrentContextScreen() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Data Quality", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
+                    val completeness = (context["data_completeness"] as? Double) ?: 0.0
+                    val staleness = (context["staleness_seconds"] as? Int) ?: 0
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Completeness")
-                        Text("${(context["data_completeness"] as Double * 100).toInt()}%")
+                        Text("${(completeness * 100).toInt()}%")
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Staleness")
-                        Text("${context["staleness_seconds"]}s")
+                        Text("${staleness}s")
                     }
                 }
             }

@@ -111,14 +111,14 @@ fun ExportBackupScreen() {
             }
 
             OutlinedButton(
-                onClick = { /* Restore from backup */ },
+                onClick = { /* TODO: implement restore from cloud backup */ },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Restore from Backup")
             }
 
             OutlinedButton(
-                onClick = { /* Share data */ },
+                onClick = { /* TODO: implement share via Android share intent */ },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Share Data")
