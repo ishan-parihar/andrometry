@@ -844,6 +844,46 @@ func (db *DB) InsertUserCorrection(userID, correctionJSON string) error {
 	return err
 }
 
+// GetUserCorrections retrieves user corrections for a user.
+func (db *DB) GetUserCorrections(userID string, limit int) ([]map[string]string, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := db.Query(`
+		SELECT audit_id, metadata, created_at
+		FROM audit_log
+		WHERE user_id = ? AND action = 'user_correction'
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []map[string]string
+	for rows.Next() {
+		var id, metadata, createdAt string
+		if err := rows.Scan(&id, &metadata, &createdAt); err == nil {
+			results = append(results, map[string]string{
+				"correction_id": id,
+				"metadata":      metadata,
+				"created_at":    createdAt,
+			})
+		}
+	}
+	return results, nil
+}
+
+// DeleteUserCorrection deletes a user correction by ID.
+func (db *DB) DeleteUserCorrection(userID, correctionID string) error {
+	_, err := db.Exec(`
+		DELETE FROM audit_log
+		WHERE user_id = ? AND audit_id = ? AND action = 'user_correction'
+	`, userID, correctionID)
+	return err
+}
+
 // DeleteBaseline deletes a baseline metric by ID for a user.
 func (db *DB) DeleteBaseline(userID, baselineID string) error {
 	_, err := db.Exec(`

@@ -99,6 +99,8 @@ func main() {
 	mux.Handle("POST /v1/baselines", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostBaseline))))
 
 	// User corrections
+	mux.Handle("GET /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.GetUserCorrections))))
+	mux.Handle("DELETE /v1/corrections/", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.DeleteUserCorrection))))
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
 	// SSE stream for real-time context updates (§21)

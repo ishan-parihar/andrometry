@@ -1017,6 +1017,41 @@ func (h *Handler) DeleteBaseline(w http.ResponseWriter, r *http.Request) {
 
 // --- User Corrections ---
 
+// GetUserCorrections handles GET /v1/corrections.
+func (h *Handler) GetUserCorrections(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	limit := queryParamInt(r, "limit", 50)
+
+	corrections, err := h.DB.GetUserCorrections(uid, limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query corrections")
+		return
+	}
+	if corrections == nil {
+		corrections = []map[string]string{}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"corrections": corrections})
+}
+
+// DeleteUserCorrection handles DELETE /v1/corrections/:id.
+func (h *Handler) DeleteUserCorrection(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 4 {
+		respondError(w, http.StatusBadRequest, "missing correction ID")
+		return
+	}
+	correctionID := parts[3]
+	uid := userID(r)
+
+	if err := h.DB.DeleteUserCorrection(uid, correctionID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete correction")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "delete_correction", "correction", correctionID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"correction_id": correctionID, "status": "deleted"})
+}
+
 // PostUserCorrection handles POST /v1/corrections.
 func (h *Handler) PostUserCorrection(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
