@@ -70,7 +70,7 @@ func main() {
 
 	// Interventions
 	mux.Handle("POST /v1/agent/interventions", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.PostIntervention))))
-	mux.Handle("PATCH /v1/agent/interventions/", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.UpdateInterventionStatus))))
+	mux.Handle("PATCH /v1/agent/interventions/{id}", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.UpdateInterventionStatus))))
 
 	// Feedback
 	mux.Handle("POST /v1/feedback", auth(middleware.RequireScope("agent:feedback:read")(http.HandlerFunc(h.PostFeedback))))
@@ -97,11 +97,11 @@ func main() {
 	// Baselines
 	mux.Handle("GET /v1/baselines", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.GetBaselines))))
 	mux.Handle("POST /v1/baselines", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostBaseline))))
-	mux.Handle("DELETE /v1/baselines/", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.DeleteBaseline))))
+	mux.Handle("DELETE /v1/baselines/{id}", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.DeleteBaseline))))
 
 	// User corrections
 	mux.Handle("GET /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.GetUserCorrections))))
-	mux.Handle("DELETE /v1/corrections/", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.DeleteUserCorrection))))
+	mux.Handle("DELETE /v1/corrections/{id}", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.DeleteUserCorrection))))
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
 	// SSE stream for real-time context updates (§21)
