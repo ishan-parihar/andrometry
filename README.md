@@ -67,6 +67,15 @@ andrometry/
 └── test/                    # Synthetic data, golden tests
 ```
 
+## Build Prerequisites
+
+- **Server**: Go 1.22+
+- **Android**: Android SDK (compileSdk 35), **Java 17** (Kotlin 2.1.0 compiler cannot parse Java 26 version strings)
+  ```bash
+  export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+  ```
+- **MCP Server**: Node.js 18+
+
 ## Quick Start
 
 ### 1. Start the Relay Server

@@ -708,6 +708,7 @@ func TestBaseline_roundTrip(t *testing.T) {
 
 	// Delete baseline
 	deleteReq := httptest.NewRequest("DELETE", "/v1/baselines/"+baselineID, nil)
+	deleteReq.SetPathValue("id", baselineID)
 	deleteReq = deleteReq.WithContext(withUserContext("primary"))
 	w5 := httptest.NewRecorder()
 	h.DeleteBaseline(w5, deleteReq)

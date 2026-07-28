@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/andrometry/server/internal/audit"
@@ -577,12 +576,11 @@ func (h *Handler) PostIntervention(w http.ResponseWriter, r *http.Request) {
 
 // UpdateInterventionStatus handles PATCH /v1/agent/interventions/:id.
 func (h *Handler) UpdateInterventionStatus(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 {
+	interventionID := r.PathValue("id")
+	if interventionID == "" {
 		respondError(w, http.StatusBadRequest, "missing intervention ID")
 		return
 	}
-	interventionID := parts[4]
 
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -998,12 +996,11 @@ func (h *Handler) PostBaseline(w http.ResponseWriter, r *http.Request) {
 
 // DeleteBaseline handles DELETE /v1/baselines/:id.
 func (h *Handler) DeleteBaseline(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
+	baselineID := r.PathValue("id")
+	if baselineID == "" {
 		respondError(w, http.StatusBadRequest, "missing baseline ID")
 		return
 	}
-	baselineID := parts[3]
 	uid := userID(r)
 
 	if err := h.DB.DeleteBaseline(uid, baselineID); err != nil {
@@ -1035,12 +1032,11 @@ func (h *Handler) GetUserCorrections(w http.ResponseWriter, r *http.Request) {
 
 // DeleteUserCorrection handles DELETE /v1/corrections/:id.
 func (h *Handler) DeleteUserCorrection(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 {
+	correctionID := r.PathValue("id")
+	if correctionID == "" {
 		respondError(w, http.StatusBadRequest, "missing correction ID")
 		return
 	}
-	correctionID := parts[3]
 	uid := userID(r)
 
 	if err := h.DB.DeleteUserCorrection(uid, correctionID); err != nil {
