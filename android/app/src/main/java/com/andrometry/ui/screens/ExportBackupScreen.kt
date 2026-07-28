@@ -13,6 +13,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.andrometry.core.database.AndrometryDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -84,18 +88,24 @@ fun ExportBackupScreen() {
                 }
             }
 
+            val coroutineScope = rememberCoroutineScope()
+
             Button(
                 onClick = {
-                    isExporting = true
-                    // Export data and generate file
-                    val exportFile = exportDataToFile(context, exportFormat)
-                    lastExport = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.US).format(Date())
-                    isExporting = false
+                    coroutineScope.launch {
+                        isExporting = true
+                        // Export data and generate file
+                        val exportFile = withContext(Dispatchers.IO) {
+                            exportDataToFile(context, exportFormat)
+                        }
+                        lastExport = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.US).format(Date())
+                        isExporting = false
 
-                    if (exportFile != null) {
-                        Toast.makeText(context, "Exported to ${exportFile.name}", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
+                        if (exportFile != null) {
+                            Toast.makeText(context, "Exported to ${exportFile.name}", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -186,7 +196,7 @@ fun ExportBackupScreen() {
 /**
  * Exports data to a file in the specified format.
  */
-private fun exportDataToFile(context: Context, format: String): File? {
+private suspend fun exportDataToFile(context: Context, format: String): File? {
     return try {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val fileName = "andrometry_export_${timestamp}.${format.lowercase()}"
@@ -195,11 +205,12 @@ private fun exportDataToFile(context: Context, format: String): File? {
 
         val exportFile = File(exportDir, fileName)
 
-        // Generate export content based on format
+        // Query database and generate export content
+        val database = AndrometryDatabase.create(context)
         val content = when (format) {
-            "JSON" -> generateJsonExport()
-            "CSV" -> generateCsvExport()
-            else -> generateJsonExport()
+            "JSON" -> generateJsonExport(database)
+            "CSV" -> generateCsvExport(database)
+            else -> generateJsonExport(database)
         }
 
         exportFile.writeText(content)
@@ -212,23 +223,32 @@ private fun exportDataToFile(context: Context, format: String): File? {
 /**
  * Generates JSON export of all data.
  */
-private fun generateJsonExport(): String {
-    // Placeholder: In production, query all databases and serialize
+private suspend fun generateJsonExport(database: AndrometryDatabase): String {
+    val events = database.eventDao().getEventsInRange("1970-01-01", "2099-12-31", 10000)
+    val segments = database.segmentDao().getSegmentsInRange("1970-01-01", "2099-12-31", 10000)
+    val habits = database.habitDao().getAll()
+    val baselines = database.baselineDao().getByName("focus_time") // Example baseline
+    val goals = database.goalDao().getActive()
+    val outcomes = database.outcomeDao().getRecent(500)
+    val observations = database.observationDao().getRecent(500)
+    val interventions = database.interventionDao().getAll(500)
+    val feedback = database.feedbackDao().getForTarget("", "") // All feedback
+
     return """
     {
         "export_version": "1.0",
         "exported_at": "${SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())}",
-        "events": [],
-        "segments": [],
-        "summaries": {
-            "five_minute": [],
-            "hourly": [],
-            "daily": [],
-            "weekly": []
-        },
-        "habits": [],
-        "baselines": [],
-        "goals": []
+        "events_count": ${events.size},
+        "events": ${events.map { mapOf("id" to it.eventId, "type" to it.eventType, "timestamp" to it.timestamp, "payload" to it.payload) }},
+        "segments_count": ${segments.size},
+        "segments": ${segments.map { mapOf("id" to it.segmentId, "type" to it.segmentType, "start" to it.startTime, "end" to it.endTime, "label" to it.label) }},
+        "habits_count": ${habits.size},
+        "habits": ${habits.map { mapOf("id" to it.habitId, "type" to it.habitType, "status" to it.status, "streak" to it.streakDays) }},
+        "goals_count": ${goals.size},
+        "goals": ${goals.map { mapOf("id" to it.goalId, "type" to it.goalType, "status" to it.status) }},
+        "outcomes_count": ${outcomes.size},
+        "interventions_count": ${interventions.size},
+        "observations_count": ${observations.size}
     }
     """.trimIndent()
 }
@@ -236,8 +256,29 @@ private fun generateJsonExport(): String {
 /**
  * Generates CSV export of key data.
  */
-private fun generateCsvExport(): String {
-    return "type,id,timestamp,data\n"
+private suspend fun generateCsvExport(database: AndrometryDatabase): String {
+    val sb = StringBuilder()
+    sb.appendLine("type,id,timestamp,payload")
+
+    // Events
+    val events = database.eventDao().getEventsInRange("1970-01-01", "2099-12-31", 10000)
+    events.forEach { e ->
+        sb.appendLine("event,${e.eventId},${e.timestamp},\"${e.payload.replace("\"", "\\\"")}\"")
+    }
+
+    // Segments
+    val segments = database.segmentDao().getSegmentsInRange("1970-01-01", "2099-12-31", 10000)
+    segments.forEach { s ->
+        sb.appendLine("segment,${s.segmentId},${s.startTime},\"${s.label}\"")
+    }
+
+    // Habits
+    val habits = database.habitDao().getAll()
+    habits.forEach { h ->
+        sb.appendLine("habit,${h.habitId},${h.createdAt},\"${h.habitType}: ${h.status}\"")
+    }
+
+    return sb.toString()
 }
 
 /**
