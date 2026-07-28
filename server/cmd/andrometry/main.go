@@ -41,6 +41,7 @@ func main() {
 
 	// Health (no auth)
 	mux.HandleFunc("GET /v1/health", h.HealthCheck)
+	mux.HandleFunc("GET /v1/health/detailed", h.HealthCheckDetailed)
 
 	// Device ingestion (device:ingest scope)
 	mux.Handle("POST /v1/batch", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.BatchIngestion))))
@@ -74,14 +75,20 @@ func main() {
 
 	// Feedback
 	mux.Handle("POST /v1/feedback", auth(middleware.RequireScope("agent:feedback:read")(http.HandlerFunc(h.PostFeedback))))
+	mux.Handle("GET /v1/feedback", auth(middleware.RequireScope("agent:feedback:read")(http.HandlerFunc(h.GetFeedback))))
 
 	// Goals
 	mux.Handle("GET /v1/goals", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.GetGoals))))
 	mux.Handle("POST /v1/goals", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostGoal))))
+	mux.Handle("PATCH /v1/goals/{id}", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.UpdateGoal))))
+	mux.Handle("DELETE /v1/goals/{id}", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.DeleteGoal))))
 
 	// Habits
 	mux.Handle("GET /v1/habits", auth(middleware.RequireScope("agent:habits:read")(http.HandlerFunc(h.GetHabits))))
 	mux.Handle("POST /v1/habits", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.PostHabit))))
+	mux.Handle("PATCH /v1/habits/{id}", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.UpdateHabit))))
+	mux.Handle("DELETE /v1/habits/{id}", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.DeleteHabit))))
+	mux.Handle("POST /v1/habits/{id}/streak", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.UpdateHabitStreak))))
 
 	// Outcomes
 	mux.Handle("POST /v1/outcomes", auth(middleware.RequireScope("agent:outcomes:write")(http.HandlerFunc(h.PostOutcome))))

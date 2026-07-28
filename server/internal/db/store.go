@@ -892,3 +892,254 @@ func (db *DB) DeleteBaseline(userID, baselineID string) error {
 	`, userID, baselineID)
 	return err
 }
+
+// --- Goal CRUD (update/delete) ---
+
+// GetGoalByID retrieves a single goal by ID.
+func (db *DB) GetGoalByID(userID, goalID string) (*models.Goal, error) {
+	var g models.Goal
+	err := db.QueryRow(`
+		SELECT goal_id, user_id, updated_at, goal_type, status, payload
+		FROM goals
+		WHERE user_id = ? AND goal_id = ?
+	`, userID, goalID).Scan(&g.GoalID, &g.UserID, &g.UpdatedAt, &g.GoalType, &g.Status, &g.Payload)
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
+// UpdateGoal updates a goal's fields.
+func (db *DB) UpdateGoal(g *models.Goal) error {
+	_, err := db.Exec(`
+		UPDATE goals SET goal_type = ?, status = ?, payload = ?, updated_at = datetime('now')
+		WHERE goal_id = ? AND user_id = ?
+	`, g.GoalType, g.Status, g.Payload, g.GoalID, g.UserID)
+	return err
+}
+
+// DeleteGoal deletes a goal by ID for a user.
+func (db *DB) DeleteGoal(userID, goalID string) error {
+	_, err := db.Exec(`
+		DELETE FROM goals
+		WHERE user_id = ? AND goal_id = ?
+	`, userID, goalID)
+	return err
+}
+
+// --- Habit CRUD (update/delete/streak) ---
+
+// GetHabitByID retrieves a single habit by ID.
+func (db *DB) GetHabitByID(userID, habitID string) (*models.Habit, error) {
+	var h models.Habit
+	err := db.QueryRow(`
+		SELECT habit_id, user_id, habit_type, target, schedule, evidence_sources, status, streak_days, habit_strength, created_at, updated_at
+		FROM habits
+		WHERE user_id = ? AND habit_id = ?
+	`, userID, habitID).Scan(&h.HabitID, &h.UserID, &h.HabitType, &h.Target, &h.Schedule, &h.EvidenceSources, &h.Status, &h.StreakDays, &h.HabitStrength, &h.CreatedAt, &h.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &h, nil
+}
+
+// UpdateHabit updates a habit's fields.
+func (db *DB) UpdateHabit(h *models.Habit) error {
+	_, err := db.Exec(`
+		UPDATE habits SET habit_type = ?, target = ?, schedule = ?, evidence_sources = ?, status = ?,
+			streak_days = ?, habit_strength = ?, updated_at = datetime('now')
+		WHERE habit_id = ? AND user_id = ?
+	`, h.HabitType, h.Target, h.Schedule, h.EvidenceSources, h.Status, h.StreakDays, h.HabitStrength, h.HabitID, h.UserID)
+	return err
+}
+
+// UpdateHabitStreak updates streak days and habit strength for a habit.
+func (db *DB) UpdateHabitStreak(userID, habitID string, streakDays int, habitStrength float64) error {
+	_, err := db.Exec(`
+		UPDATE habits SET streak_days = ?, habit_strength = ?, updated_at = datetime('now')
+		WHERE habit_id = ? AND user_id = ?
+	`, streakDays, habitStrength, habitID, userID)
+	return err
+}
+
+// DeleteHabit deletes a habit by ID for a user.
+func (db *DB) DeleteHabit(userID, habitID string) error {
+	_, err := db.Exec(`
+		DELETE FROM habits
+		WHERE user_id = ? AND habit_id = ?
+	`, userID, habitID)
+	return err
+}
+
+// --- Feedback GET ---
+
+// GetFeedback retrieves feedback for a user, optionally filtered by target.
+func (db *DB) GetFeedback(userID, targetType, targetID string, limit int) ([]models.UserFeedback, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT feedback_id, user_id, timestamp, target_type, target_id, feedback_type, payload, created_at
+		FROM user_feedback
+		WHERE user_id = ?
+	`
+	args := []interface{}{userID}
+
+	if targetType != "" {
+		query += " AND target_type = ?"
+		args = append(args, targetType)
+	}
+	if targetID != "" {
+		query += " AND target_id = ?"
+		args = append(args, targetID)
+	}
+
+	query += " ORDER BY created_at DESC LIMIT ?"
+	args = append(args, limit)
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var feedbacks []models.UserFeedback
+	for rows.Next() {
+		var f models.UserFeedback
+		err := rows.Scan(&f.FeedbackID, &f.UserID, &f.Timestamp, &f.TargetType, &f.TargetID, &f.FeedbackType, &f.Payload, &f.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		feedbacks = append(feedbacks, f)
+	}
+	return feedbacks, nil
+}
+
+// --- Token Management ---
+
+// RevokeToken revokes a specific token by setting revoked_at.
+func (db *DB) RevokeToken(tokenID string) error {
+	_, err := db.Exec(`
+		UPDATE auth_tokens SET revoked_at = datetime('now')
+		WHERE token_id = ?
+	`, tokenID)
+	return err
+}
+
+// RevokeAllTokensForUser revokes all tokens for a user.
+func (db *DB) RevokeAllTokensForUser(userID string) error {
+	_, err := db.Exec(`
+		UPDATE auth_tokens SET revoked_at = datetime('now')
+		WHERE user_id = ? AND revoked_at IS NULL
+	`, userID)
+	return err
+}
+
+// GetTokensByUser retrieves all tokens for a user.
+func (db *DB) GetTokensByUser(userID string) ([]models.AuthToken, error) {
+	rows, err := db.Query(`
+		SELECT token_id, user_id, token_type, scopes, created_at, expires_at, revoked_at
+		FROM auth_tokens
+		WHERE user_id = ?
+		ORDER BY created_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []models.AuthToken
+	for rows.Next() {
+		var t models.AuthToken
+		err := rows.Scan(&t.TokenID, &t.UserID, &t.TokenType, &t.Scopes, &t.CreatedAt, &t.ExpiresAt, &t.RevokedAt)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, nil
+}
+
+// GetLastInterventionTime returns the timestamp of the most recent intervention for a user.
+// Uses the `timestamp` column (RFC3339 from the device) rather than `created_at` (SQLite datetime format).
+func (db *DB) GetLastInterventionTime(userID string) (string, error) {
+	var ts string
+	err := db.QueryRow(`
+		SELECT timestamp FROM interventions
+		WHERE user_id = ?
+		ORDER BY created_at DESC LIMIT 1
+	`, userID).Scan(&ts)
+	if err != nil {
+		return "", err
+	}
+	return ts, nil
+}
+
+// --- Sensitive Mode Persistence ---
+
+// GetSensitiveModeSettings retrieves the persisted sensitive mode settings.
+func (db *DB) GetSensitiveModeSettings() (string, error) {
+	var settings string
+	err := db.QueryRow(`
+		SELECT settings FROM policy_settings
+		WHERE id = 1
+	`).Scan(&settings)
+	if err != nil {
+		return "", err
+	}
+	return settings, nil
+}
+
+// SaveSensitiveModeSettings persists sensitive mode settings.
+func (db *DB) SaveSensitiveModeSettings(settingsJSON string) error {
+	_, err := db.Exec(`
+		INSERT INTO policy_settings (id, settings, updated_at)
+		VALUES (1, ?, datetime('now'))
+		ON CONFLICT(id) DO UPDATE SET
+			settings = excluded.settings,
+			updated_at = datetime('now')
+	`, settingsJSON)
+	return err
+}
+
+// --- DB Stats for Health Endpoint ---
+
+// DBStats holds database statistics for the health endpoint.
+type DBStats struct {
+	EventsCount       int64 `json:"events_count"`
+	SegmentsCount     int64 `json:"segments_count"`
+	DailySummariesCount int64 `json:"daily_summaries_count"`
+	ObservationsCount int64 `json:"observations_count"`
+	InterventionsCount int64 `json:"interventions_count"`
+	FeedbackCount     int64 `json:"feedback_count"`
+	GoalsCount        int64 `json:"goals_count"`
+	HabitsCount       int64 `json:"habits_count"`
+	BaselinesCount    int64 `json:"baselines_count"`
+	DevicesCount      int64 `json:"devices_count"`
+	AuditLogCount     int64 `json:"audit_log_count"`
+}
+
+// GetDBStats returns counts for all major tables.
+func (db *DB) GetDBStats() (DBStats, error) {
+	var stats DBStats
+	tables := []struct {
+		query string
+		field *int64
+	}{
+		{"SELECT COUNT(*) FROM events", &stats.EventsCount},
+		{"SELECT COUNT(*) FROM timeline_segments", &stats.SegmentsCount},
+		{"SELECT COUNT(*) FROM daily_summary", &stats.DailySummariesCount},
+		{"SELECT COUNT(*) FROM agent_observations", &stats.ObservationsCount},
+		{"SELECT COUNT(*) FROM interventions", &stats.InterventionsCount},
+		{"SELECT COUNT(*) FROM user_feedback", &stats.FeedbackCount},
+		{"SELECT COUNT(*) FROM goals", &stats.GoalsCount},
+		{"SELECT COUNT(*) FROM habits", &stats.HabitsCount},
+		{"SELECT COUNT(*) FROM baselines", &stats.BaselinesCount},
+		{"SELECT COUNT(*) FROM devices", &stats.DevicesCount},
+		{"SELECT COUNT(*) FROM audit_log", &stats.AuditLogCount},
+	}
+	for _, t := range tables {
+		_ = db.QueryRow(t.query).Scan(t.field)
+	}
+	return stats, nil
+}

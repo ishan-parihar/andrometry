@@ -674,6 +674,24 @@ func (h *Handler) PostFeedback(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusCreated, map[string]string{"feedback_id": fb.FeedbackID, "status": "created"})
 }
 
+// GetFeedback handles GET /v1/feedback.
+func (h *Handler) GetFeedback(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	targetType := queryParam(r, "target_type", "")
+	targetID := queryParam(r, "target_id", "")
+	limit := queryParamInt(r, "limit", 50)
+
+	feedbacks, err := h.DB.GetFeedback(uid, targetType, targetID, limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query feedback")
+		return
+	}
+	if feedbacks == nil {
+		feedbacks = []models.UserFeedback{}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{"feedback": feedbacks})
+}
+
 // --- Goals ---
 
 // GetGoals handles GET /v1/goals.
@@ -688,6 +706,84 @@ func (h *Handler) GetGoals(w http.ResponseWriter, r *http.Request) {
 		goals = []models.Goal{}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"goals": goals})
+}
+
+// UpdateGoal handles PATCH /v1/goals/:id.
+func (h *Handler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
+	goalID := r.PathValue("id")
+	if goalID == "" {
+		respondError(w, http.StatusBadRequest, "missing goal ID")
+		return
+	}
+
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var update struct {
+		GoalType string                 `json:"goal_type,omitempty"`
+		Title    string                 `json:"title,omitempty"`
+		Status   string                 `json:"status,omitempty"`
+		Target   map[string]interface{} `json:"target,omitempty"`
+	}
+	if err := json.Unmarshal(body, &update); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	uid := userID(r)
+	existing, err := h.DB.GetGoalByID(uid, goalID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "goal not found")
+		return
+	}
+
+	if update.GoalType != "" {
+		existing.GoalType = update.GoalType
+	}
+	if update.Status != "" {
+		existing.Status = update.Status
+	}
+	if update.Target != nil || update.Title != "" {
+		var payload map[string]interface{}
+		json.Unmarshal([]byte(existing.Payload), &payload)
+		if payload == nil {
+			payload = map[string]interface{}{}
+		}
+		if update.Title != "" {
+			payload["title"] = update.Title
+		}
+		if update.Target != nil {
+			payload["target"] = update.Target
+		}
+		b, _ := json.Marshal(payload)
+		existing.Payload = string(b)
+	}
+
+	if err := h.DB.UpdateGoal(existing); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update goal")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "update_goal", "goal", goalID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"goal_id": goalID, "status": "updated"})
+}
+
+// DeleteGoal handles DELETE /v1/goals/:id.
+func (h *Handler) DeleteGoal(w http.ResponseWriter, r *http.Request) {
+	goalID := r.PathValue("id")
+	if goalID == "" {
+		respondError(w, http.StatusBadRequest, "missing goal ID")
+		return
+	}
+	uid := userID(r)
+
+	if err := h.DB.DeleteGoal(uid, goalID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete goal")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "delete_goal", "goal", goalID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"goal_id": goalID, "status": "deleted"})
 }
 
 // PostGoal handles POST /v1/goals.
@@ -753,6 +849,106 @@ func (h *Handler) GetHabits(w http.ResponseWriter, r *http.Request) {
 		habits = []models.Habit{}
 	}
 	respondJSON(w, http.StatusOK, map[string]interface{}{"habits": habits})
+}
+
+// UpdateHabit handles PATCH /v1/habits/:id.
+func (h *Handler) UpdateHabit(w http.ResponseWriter, r *http.Request) {
+	habitID := r.PathValue("id")
+	if habitID == "" {
+		respondError(w, http.StatusBadRequest, "missing habit ID")
+		return
+	}
+
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var update struct {
+		HabitType       string   `json:"habit_type,omitempty"`
+		Status          string   `json:"status,omitempty"`
+		StreakDays      *int     `json:"streak_days,omitempty"`
+		HabitStrength   *float64 `json:"habit_strength,omitempty"`
+	}
+	if err := json.Unmarshal(body, &update); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	uid := userID(r)
+	existing, err := h.DB.GetHabitByID(uid, habitID)
+	if err != nil {
+		respondError(w, http.StatusNotFound, "habit not found")
+		return
+	}
+
+	if update.HabitType != "" {
+		existing.HabitType = update.HabitType
+	}
+	if update.Status != "" {
+		existing.Status = update.Status
+	}
+	if update.StreakDays != nil {
+		existing.StreakDays = *update.StreakDays
+	}
+	if update.HabitStrength != nil {
+		existing.HabitStrength = update.HabitStrength
+	}
+
+	if err := h.DB.UpdateHabit(existing); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update habit")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "update_habit", "habit", habitID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"habit_id": habitID, "status": "updated"})
+}
+
+// DeleteHabit handles DELETE /v1/habits/:id.
+func (h *Handler) DeleteHabit(w http.ResponseWriter, r *http.Request) {
+	habitID := r.PathValue("id")
+	if habitID == "" {
+		respondError(w, http.StatusBadRequest, "missing habit ID")
+		return
+	}
+	uid := userID(r)
+
+	if err := h.DB.DeleteHabit(uid, habitID); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to delete habit")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "delete_habit", "habit", habitID, "")
+	respondJSON(w, http.StatusOK, map[string]string{"habit_id": habitID, "status": "deleted"})
+}
+
+// UpdateHabitStreak handles POST /v1/habits/:id/streak.
+func (h *Handler) UpdateHabitStreak(w http.ResponseWriter, r *http.Request) {
+	habitID := r.PathValue("id")
+	if habitID == "" {
+		respondError(w, http.StatusBadRequest, "missing habit ID")
+		return
+	}
+
+	body, _ := io.ReadAll(r.Body)
+	defer r.Body.Close()
+
+	var req struct {
+		StreakDays    int     `json:"streak_days"`
+		HabitStrength float64 `json:"habit_strength"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	uid := userID(r)
+	if err := h.DB.UpdateHabitStreak(uid, habitID, req.StreakDays, req.HabitStrength); err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to update streak")
+		return
+	}
+
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "update_habit_streak", "habit", habitID,
+		fmt.Sprintf(`{"streak_days":%d,"habit_strength":%.2f}`, req.StreakDays, req.HabitStrength))
+	respondJSON(w, http.StatusOK, map[string]string{"habit_id": habitID, "status": "streak_updated"})
 }
 
 // PostHabit handles POST /v1/habits.
@@ -1178,6 +1374,22 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"server":    "andrometry-relay",
 		"version":   "0.1.0",
 		"timestamp": nowUTC(),
+	})
+}
+
+// HealthCheckDetailed handles GET /v1/health/detailed — returns DB stats and server health.
+func (h *Handler) HealthCheckDetailed(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.DB.GetDBStats()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query db stats")
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status":    "ok",
+		"server":    "andrometry-relay",
+		"version":   "0.1.0",
+		"timestamp": nowUTC(),
+		"db_stats":  stats,
 	})
 }
 

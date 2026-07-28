@@ -67,7 +67,9 @@ func (tr *TokenRotation) CheckAndRotate(userID string) error {
 // RevokeAllTokens revokes all tokens for a user (kill switch).
 func (tr *TokenRotation) RevokeAllTokens(userID string) error {
 	log.Printf("[token-rotation] revoking all tokens for user %s", userID)
-	// Implementation would update all tokens for this user to revoked
+	if err := tr.DB.RevokeAllTokensForUser(userID); err != nil {
+		return fmt.Errorf("revoke all tokens: %w", err)
+	}
 	return nil
 }
 

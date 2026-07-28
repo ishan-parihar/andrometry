@@ -808,3 +808,218 @@ func TestHourlySummary_roundTrip(t *testing.T) {
 		t.Errorf("summary = %v, want correct JSON", s["summary"])
 	}
 }
+
+// --- Goal CRUD tests ---
+
+func TestGoal_roundTrip(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Create goal
+	goal := map[string]interface{}{
+		"goal_type": "deep_work_minutes",
+		"title":     "Deep work 2 hours daily",
+		"target":    map[string]interface{}{"minutes": 120},
+	}
+	body, _ := json.Marshal(goal)
+	req := httptest.NewRequest("POST", "/v1/goals", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostGoal(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post goal status = %d, want %d", w.Code, http.StatusCreated)
+	}
+	var postResp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &postResp)
+	goalID := postResp["goal_id"]
+
+	// Get goals
+	req2 := httptest.NewRequest("GET", "/v1/goals", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetGoals(w2, req2)
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	goals := resp["goals"].([]interface{})
+	if len(goals) != 1 {
+		t.Fatalf("goals count = %d, want 1", len(goals))
+	}
+
+	// Update goal status
+	updateBody, _ := json.Marshal(map[string]interface{}{"status": "completed"})
+	req3 := httptest.NewRequest("PATCH", "/v1/goals/"+goalID, bytes.NewReader(updateBody))
+	req3.Header.Set("Content-Type", "application/json")
+	req3.SetPathValue("id", goalID)
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.UpdateGoal(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("update goal status = %d, want %d", w3.Code, http.StatusOK)
+	}
+
+	// Delete goal
+	req4 := httptest.NewRequest("DELETE", "/v1/goals/"+goalID, nil)
+	req4.SetPathValue("id", goalID)
+	req4 = req4.WithContext(withUserContext("primary"))
+	w4 := httptest.NewRecorder()
+	h.DeleteGoal(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("delete goal status = %d, want %d", w4.Code, http.StatusOK)
+	}
+
+	// Verify deleted
+	req5 := httptest.NewRequest("GET", "/v1/goals", nil)
+	req5 = req5.WithContext(withUserContext("primary"))
+	w5 := httptest.NewRecorder()
+	h.GetGoals(w5, req5)
+	var resp2 map[string]interface{}
+	json.Unmarshal(w5.Body.Bytes(), &resp2)
+	goals2 := resp2["goals"].([]interface{})
+	if len(goals2) != 0 {
+		t.Errorf("goals count after delete = %d, want 0", len(goals2))
+	}
+}
+
+func TestGoal_notFound(t *testing.T) {
+	h, _ := setupTestHandler(t)
+	req := httptest.NewRequest("PATCH", "/v1/goals/nonexistent", bytes.NewReader([]byte(`{"status":"completed"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", "nonexistent")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.UpdateGoal(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+// --- Habit CRUD tests ---
+
+func TestHabit_roundTrip(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Create habit
+	habit := map[string]interface{}{
+		"habit_type":       "morning_routine",
+		"title":            "Wake before 7am",
+		"target":           map[string]interface{}{"metric": "wake_before_7am"},
+		"schedule":         map[string]interface{}{"days": []string{"mon", "tue"}},
+		"evidence_sources": []string{"screen_state"},
+	}
+	body, _ := json.Marshal(habit)
+	req := httptest.NewRequest("POST", "/v1/habits", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostHabit(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post habit status = %d, want %d", w.Code, http.StatusCreated)
+	}
+	var postResp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &postResp)
+	habitID := postResp["habit_id"]
+
+	// Get habits
+	req2 := httptest.NewRequest("GET", "/v1/habits", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetHabits(w2, req2)
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	habits := resp["habits"].([]interface{})
+	if len(habits) != 1 {
+		t.Fatalf("habits count = %d, want 1", len(habits))
+	}
+
+	// Update streak
+	streakBody, _ := json.Marshal(map[string]interface{}{"streak_days": 5, "habit_strength": 0.72})
+	req3 := httptest.NewRequest("POST", "/v1/habits/"+habitID+"/streak", bytes.NewReader(streakBody))
+	req3.Header.Set("Content-Type", "application/json")
+	req3.SetPathValue("id", habitID)
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.UpdateHabitStreak(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("update streak status = %d, want %d", w3.Code, http.StatusOK)
+	}
+
+	// Delete habit
+	req4 := httptest.NewRequest("DELETE", "/v1/habits/"+habitID, nil)
+	req4.SetPathValue("id", habitID)
+	req4 = req4.WithContext(withUserContext("primary"))
+	w4 := httptest.NewRecorder()
+	h.DeleteHabit(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("delete habit status = %d, want %d", w4.Code, http.StatusOK)
+	}
+
+	// Verify deleted
+	req5 := httptest.NewRequest("GET", "/v1/habits", nil)
+	req5 = req5.WithContext(withUserContext("primary"))
+	w5 := httptest.NewRecorder()
+	h.GetHabits(w5, req5)
+	var resp2 map[string]interface{}
+	json.Unmarshal(w5.Body.Bytes(), &resp2)
+	habits2 := resp2["habits"].([]interface{})
+	if len(habits2) != 0 {
+		t.Errorf("habits count after delete = %d, want 0", len(habits2))
+	}
+}
+
+// --- Feedback GET test ---
+
+func TestGetFeedback_afterPost(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Post feedback
+	fb := map[string]interface{}{
+		"target_type":   "intervention",
+		"target_id":     "int-1",
+		"feedback_type": "helpful",
+		"rating":        4,
+	}
+	body, _ := json.Marshal(fb)
+	req := httptest.NewRequest("POST", "/v1/feedback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostFeedback(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post feedback status = %d, want %d", w.Code, http.StatusCreated)
+	}
+
+	// Get feedback
+	req2 := httptest.NewRequest("GET", "/v1/feedback", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetFeedback(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("get feedback status = %d, want %d", w2.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	feedbacks := resp["feedback"].([]interface{})
+	if len(feedbacks) != 1 {
+		t.Fatalf("feedback count = %d, want 1", len(feedbacks))
+	}
+}
+
+// --- Health detailed test ---
+
+func TestHealthCheckDetailed(t *testing.T) {
+	h, _ := setupTestHandler(t)
+	req := httptest.NewRequest("GET", "/v1/health/detailed", nil)
+	w := httptest.NewRecorder()
+	h.HealthCheckDetailed(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != "ok" {
+		t.Errorf("status = %v, want ok", resp["status"])
+	}
+	if resp["db_stats"] == nil {
+		t.Error("expected db_stats in response")
+	}
+}

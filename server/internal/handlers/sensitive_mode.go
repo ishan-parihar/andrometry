@@ -11,10 +11,14 @@ import (
 
 // GetSensitiveMode handles GET /v1/privacy/sensitive-mode.
 func (h *Handler) GetSensitiveMode(w http.ResponseWriter, r *http.Request) {
-	uid := userID(r)
-	_ = uid
-	// For now, return default — in production, store per-user
-	mode := governor.DefaultSensitiveMode()
+	settings, err := h.DB.GetSensitiveModeSettings()
+	if err != nil {
+		// No persisted settings — return defaults
+		mode := governor.DefaultSensitiveMode()
+		respondJSON(w, http.StatusOK, mode)
+		return
+	}
+	mode := governor.UnmarshalSensitiveMode(settings)
 	respondJSON(w, http.StatusOK, mode)
 }
 
@@ -42,6 +46,9 @@ func (h *Handler) SetSensitiveMode(w http.ResponseWriter, r *http.Request) {
 
 	audit.Log(h.DB, uid, actorType(r), actorID(r), "set_sensitive_mode", "privacy", "",
 		`{"active":`+boolToString(req.Active)+`}`)
+
+	// Persist to DB
+	_ = h.DB.SaveSensitiveModeSettings(governor.MarshalSensitiveMode(mode))
 
 	respondJSON(w, http.StatusOK, mode)
 }

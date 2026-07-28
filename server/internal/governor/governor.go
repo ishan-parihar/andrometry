@@ -31,21 +31,34 @@ func DefaultPolicy() Policy {
 		AllowHighSeverityOverride: true,
 		MaxObservationsPerDay:     20,
 	}
-}
-
-// Evaluate checks whether an intervention should be approved by policy.
+}// Evaluate checks whether an intervention should be approved by policy.
 func Evaluate(database *db.DB, userID string, policy Policy, severity string) (approved bool, reason string) {
 	// Check quiet hours
 	if inQuietHours(policy) {
 		if severity != "high" || !policy.AllowHighSeverityOverride {
 			return false, "quiet_hours"
-		}
+	}
 	}
 
 	// Check daily intervention limit
 	count, err := database.CountInterventionsToday(userID)
 	if err == nil && count >= policy.MaxInterventionsPerDay {
 		return false, "daily_limit_reached"
+	}
+
+	// Check cooldown between interventions
+	if policy.CooldownMinutes > 0 {
+		lastTs, err := database.GetLastInterventionTime(userID)
+		if err == nil && lastTs != "" {
+			lastTime, parseErr := time.Parse(time.RFC3339, lastTs)
+			if parseErr == nil {
+				elapsed := time.Since(lastTime)
+				cooldown := time.Duration(policy.CooldownMinutes) * time.Minute
+				if elapsed < cooldown {
+					return false, "cooldown"
+				}
+			}
+		}
 	}
 
 	return true, ""
