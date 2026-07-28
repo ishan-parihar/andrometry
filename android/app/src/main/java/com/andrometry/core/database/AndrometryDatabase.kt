@@ -130,7 +130,9 @@ data class GoalEntity(
     val syncState: String = "pending"
 )
 
-@Entity(tableName = "habits")
+@Entity(tableName = "habits",
+    indices = [Index("habitType")]
+)
 data class HabitEntity(
     @PrimaryKey val habitId: String,
     val habitType: String,
@@ -145,7 +147,9 @@ data class HabitEntity(
     val syncState: String = "pending"
 )
 
-@Entity(tableName = "baselines")
+@Entity(tableName = "baselines",
+    indices = [Index("metricName")]
+)
 data class BaselineEntity(
     @PrimaryKey val baselineId: String,
     val metricName: String,
@@ -174,7 +178,9 @@ data class PermissionStateEntity(
     val syncState: String = "pending"
 )
 
-@Entity(tableName = "outcomes")
+@Entity(tableName = "outcomes",
+    indices = [Index("interventionId"), Index("timestamp")]
+)
 data class OutcomeEntity(
     @PrimaryKey val outcomeId: String,
     val interventionId: String,
@@ -194,9 +200,6 @@ interface EventDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(event: EventEntity): Long
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAll(events: List<EventEntity>): List<Long>
-
     @Query("SELECT * FROM events WHERE syncState = 'pending' ORDER BY sequence ASC")
     suspend fun getPendingEvents(): List<EventEntity>
 
@@ -206,8 +209,6 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE timestamp >= :from AND timestamp <= :to ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getEventsInRange(from: String, to: String, limit: Int = 200): List<EventEntity>
 
-    @Query("DELETE FROM events WHERE createdAt < datetime('now', '-14 days')")
-    suspend fun pruneOldEvents()
 
     @Query("SELECT MAX(sequence) FROM events WHERE deviceId = :deviceId")
     suspend fun getLastSequence(deviceId: String): Long?
@@ -233,14 +234,8 @@ interface SegmentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(segment: TimelineSegmentEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(segments: List<TimelineSegmentEntity>)
-
     @Query("SELECT * FROM timeline_segments WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC LIMIT :limit")
     suspend fun getSegmentsInRange(from: String, to: String, limit: Int = 200): List<TimelineSegmentEntity>
-
-    @Query("SELECT * FROM timeline_segments WHERE startTime >= :from AND startTime <= :to AND segmentType = :type ORDER BY startTime ASC")
-    suspend fun getSegmentsByType(from: String, to: String, type: String): List<TimelineSegmentEntity>
 
     @Query("SELECT * FROM timeline_segments WHERE segmentId = :segmentId")
     suspend fun getById(segmentId: String): TimelineSegmentEntity?
@@ -262,9 +257,6 @@ interface FiveMinuteSummaryDao {
 
     @Query("SELECT * FROM five_minute_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
     suspend fun getInRange(from: String, to: String): List<FiveMinuteSummaryEntity>
-
-    @Query("SELECT * FROM five_minute_summary ORDER BY startTime DESC LIMIT :limit")
-    suspend fun getRecent(limit: Int = 100): List<FiveMinuteSummaryEntity>
 }
 
 @Dao
@@ -277,9 +269,6 @@ interface HourlySummaryDao {
 
     @Query("SELECT * FROM hourly_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
     suspend fun getInRange(from: String, to: String): List<HourlySummaryEntity>
-
-    @Query("SELECT * FROM hourly_summary ORDER BY startTime DESC LIMIT :limit")
-    suspend fun getRecent(limit: Int = 48): List<HourlySummaryEntity>
 }
 
 @Dao
@@ -289,8 +278,6 @@ interface DailySummaryDao {
 
     @Query("SELECT * FROM daily_summary WHERE date = :date")
     suspend fun get(date: String): DailySummaryEntity?
-
-    @Query("SELECT * FROM daily_summary WHERE date = :date")
 
     @Query("SELECT * FROM daily_summary ORDER BY date DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 7): List<DailySummaryEntity>
@@ -303,9 +290,6 @@ interface WeeklySummaryDao {
 
     @Query("SELECT * FROM weekly_summary WHERE week = :week")
     suspend fun get(week: String): WeeklySummaryEntity?
-
-    @Query("SELECT * FROM weekly_summary ORDER BY week DESC LIMIT :limit")
-    suspend fun getRecent(limit: Int = 12): List<WeeklySummaryEntity>
 }
 
 @Dao
@@ -390,9 +374,6 @@ interface BaselineDao {
 
     @Query("SELECT * FROM baselines WHERE metricName = :metricName LIMIT 1")
     suspend fun getByName(metricName: String): BaselineEntity?
-
-    @Query("SELECT * FROM baselines")
-    suspend fun getAll(): List<BaselineEntity>
 }
 
 @Dao
@@ -439,7 +420,7 @@ interface PermissionStateDao {
         PermissionStateEntity::class,
         OutcomeEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -470,7 +451,7 @@ abstract class AndrometryDatabase : RoomDatabase() {
                 AndrometryDatabase::class.java,
                 DB_NAME
             )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration() // pre-release: production must use proper migrations
             .build()
         }
     }
