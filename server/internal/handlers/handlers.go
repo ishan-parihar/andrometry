@@ -187,12 +187,15 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Upsert summaries (daily and weekly)
+	// Upsert summaries (daily, weekly, five-minute, hourly)
 	acceptedSummaries := 0
 	for _, s := range batch.Summaries {
 		summaryBytes, _ := json.Marshal(s)
 		date := getStringFromMap(s, "date", "")
 		week := getStringFromMap(s, "week", "")
+		startTime := getStringFromMap(s, "start_time", "")
+		endTime := getStringFromMap(s, "end_time", "")
+		summaryType := getStringFromMap(s, "summary_type", "")
 		tz := getStringFromMap(s, "timezone", "UTC")
 		if date != "" {
 			_ = h.DB.UpsertDailySummary(&models.DailySummary{
@@ -211,6 +214,13 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 				Summary:  string(summaryBytes),
 				Version:  1,
 			})
+			acceptedSummaries++
+		} else if startTime != "" && endTime != "" {
+			if summaryType == "five_minute" {
+				_ = h.DB.UpsertFiveMinuteSummary(uid, startTime, endTime, string(summaryBytes))
+			} else {
+				_ = h.DB.UpsertHourlySummary(uid, startTime, endTime, string(summaryBytes))
+			}
 			acceptedSummaries++
 		}
 	}
