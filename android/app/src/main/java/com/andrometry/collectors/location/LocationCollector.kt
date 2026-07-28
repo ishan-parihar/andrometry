@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.core.database.TimelineSegmentEntity
@@ -18,22 +19,16 @@ import javax.inject.Singleton
 
 /**
  * Location collector using geofencing and passive location updates.
- * Follows the battery-efficient hierarchy from architecture.md §9.4:
- *
- * 1. Geofences for known places
- * 2. Passive location provider
- * 3. Significant location changes
- * 4. Low-frequency fused location updates
- * 5. High-frequency GPS only in debug mode
- *
- * Default cadence: Event-driven (geofence) + 15 min reconciliation
- * Produces: place_visit segments, location_context events, movement_context events
+ * Follows the battery-efficient hierarchy from architecture.md §9.4.
  *
  * §9.4 — Do not send exact coordinates by default. Send semantic location.
+ *
+ * Properly injects AndrometryDatabase via Hilt DI (critical fix).
  */
 @Singleton
 class LocationCollector @Inject constructor(
-    private val sequenceGenerator: SequenceGenerator
+    private val sequenceGenerator: SequenceGenerator,
+    private val database: AndrometryDatabase
 ) {
     data class KnownPlace(
         val name: String,
@@ -49,9 +44,8 @@ class LocationCollector @Inject constructor(
         val changed: Boolean
     )
 
-    // Known places — configurable by user via DataStore preferences
     private val knownPlaces = mutableListOf(
-        KnownPlace("home", 0.0, 0.0, 200f),   // User must configure real coordinates
+        KnownPlace("home", 0.0, 0.0, 200f),
         KnownPlace("office", 0.0, 0.0, 150f),
         KnownPlace("gym", 0.0, 0.0, 100f),
         KnownPlace("cafe", 0.0, 0.0, 80f)
@@ -63,9 +57,6 @@ class LocationCollector @Inject constructor(
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private var geofencingClient: GeofencingClient? = null
 
-    /**
-     * Initializes geofences and starts passive location updates.
-     */
     fun start(context: Context) {
         if (!hasLocationPermission(context)) return
 
@@ -76,11 +67,7 @@ class LocationCollector @Inject constructor(
         startPassiveLocationUpdates(context)
     }
 
-    /**
-     * Registers geofences for all known places.
-     */
     private fun registerGeofences(context: Context) {
-        // Filter out placeholder places (lat/lng = 0.0)
         val validPlaces = knownPlaces.filter { it.latitude != 0.0 || it.longitude != 0.0 }
         if (validPlaces.isEmpty()) return
 
@@ -102,9 +89,6 @@ class LocationCollector @Inject constructor(
         geofencingClient?.addGeofences(request, null)
     }
 
-    /**
-     * Starts passive location updates at low frequency (every 15 minutes).
-     */
     private fun startPassiveLocationUpdates(context: Context) {
         if (!hasLocationPermission(context)) return
 
@@ -121,9 +105,6 @@ class LocationCollector @Inject constructor(
         }, Looper.getMainLooper())
     }
 
-    /**
-     * Processes a location update and creates appropriate events/segments.
-     */
     private fun processLocationUpdate(context: Context, location: Location) {
         val detectedPlace = detectPlace(location)
         val movement = classifyMovement(location)
@@ -147,6 +128,7 @@ class LocationCollector @Inject constructor(
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date())
 
+        // Store event via Hilt-injected database
         val event = EventEntity(
             eventId = UUID.randomUUID().toString(),
             deviceId = android.os.Build.MODEL.replace(" ", "-").lowercase(),
@@ -158,12 +140,9 @@ class LocationCollector @Inject constructor(
             source = "geofence",
             payload = Gson().toJson(payload)
         )
+        database.eventDao().insert(event)
 
-        // Store event — the caller (AndrometryApp or a sync worker) provides the database reference
-        // For now, we emit the event to the database via the injected sequence generator
-        // In production, this would go through the app's event pipeline
-
-        // If place changed and we had a previous place, create place_visit segment
+        // If place changed, create place_visit segment
         if (placeChanged && lastPlace != "unknown" && lastPlaceEnteredMs > 0) {
             val enterTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
@@ -181,7 +160,7 @@ class LocationCollector @Inject constructor(
                 ingestedAt = now,
                 payload = Gson().toJson(mapOf("confidence" to 0.88))
             )
-            // Segment will be stored via the app's event pipeline
+            database.segmentDao().upsert(segment)
         }
 
         lastLocation = location
@@ -191,12 +170,9 @@ class LocationCollector @Inject constructor(
         }
     }
 
-    /**
-     * Detects which known place the user is near.
-     */
     private fun detectPlace(location: Location): String {
         for (place in knownPlaces) {
-            if (place.latitude == 0.0 && place.longitude == 0.0) continue // Skip unconfigured places
+            if (place.latitude == 0.0 && place.longitude == 0.0) continue
             val distance = FloatArray(1)
             Location.distanceBetween(
                 location.latitude, location.longitude,
@@ -210,9 +186,6 @@ class LocationCollector @Inject constructor(
         return "unknown"
     }
 
-    /**
-     * Classifies movement state from location updates.
-     */
     private fun classifyMovement(location: Location): String {
         val last = lastLocation ?: return "unknown"
 
@@ -236,17 +209,11 @@ class LocationCollector @Inject constructor(
         }
     }
 
-    /**
-     * Adds a custom known place.
-     */
     fun addKnownPlace(name: String, latitude: Double, longitude: Double, radiusMeters: Float = 150f) {
         knownPlaces.removeAll { it.name == name }
         knownPlaces.add(KnownPlace(name, latitude, longitude, radiusMeters))
     }
 
-    /**
-     * Sets the user's known places (replaces all).
-     */
     fun setKnownPlaces(places: List<KnownPlace>) {
         knownPlaces.clear()
         knownPlaces.addAll(places)

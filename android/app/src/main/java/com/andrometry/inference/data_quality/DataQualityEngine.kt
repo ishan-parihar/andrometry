@@ -1,5 +1,6 @@
 package com.andrometry.inference.data_quality
 
+import java.util.Collections
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -8,6 +9,8 @@ import javax.inject.Singleton
  * Attached to every context snapshot so agents know when not to trust a conclusion.
  *
  * Implements clock drift detection (§23.3) and app health telemetry (§23.5).
+ *
+ * Thread-safe: driftHistory uses Collections.synchronizedList.
  */
 @Singleton
 class DataQualityEngine @Inject constructor() {
@@ -49,25 +52,23 @@ class DataQualityEngine @Inject constructor() {
     private var syncFailureCount = 0
     private var lastSyncSuccessMs = 0L
     private var lastServerTimeMs = 0L
-    private val driftHistory = mutableListOf<Long>()
 
-    /**
-     * Records a collector update.
-     */
+    // Thread-safe drift history using Collections.synchronizedList
+    private val driftHistory: MutableList<Long> = Collections.synchronizedList(mutableListOf())
+
     fun recordCollectorUpdate(name: String, active: Boolean = true, error: Boolean = false) {
-        val existing = collectorHealthMap[name]
-        collectorHealthMap[name] = CollectorHealth(
-            name = name,
-            active = active,
-            lastUpdateMs = System.currentTimeMillis(),
-            errorCount = (existing?.errorCount ?: 0) + if (error) 1 else 0,
-            degraded = error || (existing?.errorCount ?: 0) > 3
-        )
+        synchronized(collectorHealthMap) {
+            val existing = collectorHealthMap[name]
+            collectorHealthMap[name] = CollectorHealth(
+                name = name,
+                active = active,
+                lastUpdateMs = System.currentTimeMillis(),
+                errorCount = (existing?.errorCount ?: 0) + if (error) 1 else 0,
+                degraded = error || (existing?.errorCount ?: 0) > 3
+            )
+        }
     }
 
-    /**
-     * Records a sync result for telemetry.
-     */
     fun recordSyncResult(success: Boolean) {
         if (success) {
             lastSyncSuccessMs = System.currentTimeMillis()
@@ -80,26 +81,23 @@ class DataQualityEngine @Inject constructor() {
     /**
      * Checks for clock drift between device and server time (§23.3).
      * Uses a rolling window of 5 samples to detect persistent drift.
+     * Thread-safe: driftHistory is a synchronized list.
      */
     fun checkClockDrift(serverTimeMs: Long, deviceTimeMs: Long, thresholdMs: Long = 300000): Boolean {
         val drift = deviceTimeMs - serverTimeMs
-        driftHistory.add(drift)
-        if (driftHistory.size > 5) driftHistory.removeAt(0)
+        synchronized(driftHistory) {
+            driftHistory.add(drift)
+            if (driftHistory.size > 5) driftHistory.removeAt(0)
+            lastServerTimeMs = serverTimeMs
 
-        lastServerTimeMs = serverTimeMs
-
-        // Persistent drift: if average drift exceeds threshold for multiple samples
-        if (driftHistory.size >= 3) {
-            val avgDrift = driftHistory.average()
-            return kotlin.math.abs(avgDrift) > thresholdMs
+            if (driftHistory.size >= 3) {
+                val avgDrift = driftHistory.average()
+                return kotlin.math.abs(avgDrift) > thresholdMs
+            }
         }
-
         return kotlin.math.abs(drift) > thresholdMs
     }
 
-    /**
-     * Calculates current data quality based on collector states.
-     */
     fun calculateDataQuality(
         permissionState: Map<String, Boolean>,
         lastSyncMinutesAgo: Int = 0,
@@ -108,14 +106,17 @@ class DataQualityEngine @Inject constructor() {
             "location", "health_connect", "screen", "device"
         )
     ): DataQuality {
-        val activeCollectors = collectorHealthMap.values.filter { it.active }.map { it.name }
-        val degradedCollectors = collectorHealthMap.values.filter { it.degraded }.map { it.name }
+        val activeCollectors: List<String>
+        val degradedCollectors: List<String>
+        synchronized(collectorHealthMap) {
+            activeCollectors = collectorHealthMap.values.filter { it.active }.map { it.name }
+            degradedCollectors = collectorHealthMap.values.filter { it.degraded }.map { it.name }
+        }
 
         val completeness = if (expectedCollectors.isEmpty()) 1.0
                           else activeCollectors.size.toDouble() / expectedCollectors.size
 
         val missingCollectors = expectedCollectors.filter { it !in activeCollectors }
-
         val permissionIssues = permissionState.filter { !it.value }.keys.toList()
 
         val missingSignals = mutableListOf<String>()
@@ -125,10 +126,10 @@ class DataQualityEngine @Inject constructor() {
         if (permissionState["location"] != true) missingSignals.add("location")
         if (permissionState["health_connect"] != true) missingSignals.add("health")
 
-        val locationFresh = (collectorHealthMap["location"]?.lastUpdateMs ?: 0) >
-                            (System.currentTimeMillis() - 900000) // 15 min
+        val locationFresh = synchronized(collectorHealthMap) {
+            (collectorHealthMap["location"]?.lastUpdateMs ?: 0) > (System.currentTimeMillis() - 900000)
+        }
 
-        // Check clock drift using last known server time
         val clockDriftDetected = if (lastServerTimeMs > 0) {
             checkClockDrift(lastServerTimeMs, System.currentTimeMillis())
         } else {
@@ -152,13 +153,14 @@ class DataQualityEngine @Inject constructor() {
         )
     }
 
-    /**
-     * Generates app health telemetry (§23.5).
-     */
     fun getHealthTelemetry(queueDepth: Int = 0, dbSizeBytes: Long = 0): AppHealthTelemetry {
+        val snapshot: Map<String, CollectorHealth>
+        synchronized(collectorHealthMap) {
+            snapshot = collectorHealthMap.toMap()
+        }
         return AppHealthTelemetry(
             queueDepth = queueDepth,
-            collectorHealth = collectorHealthMap.toMap(),
+            collectorHealth = snapshot,
             syncFailureCount = syncFailureCount,
             lastSyncSuccessMs = lastSyncSuccessMs,
             dbSizeBytes = dbSizeBytes,

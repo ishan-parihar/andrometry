@@ -4,6 +4,9 @@ import android.content.Context
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.core.network.RelayClient
+import com.andrometry.inference.habits.HabitEngine
+import com.andrometry.inference.readiness.ReadinessEngine
+import com.andrometry.inference.work_patterns.WorkPatternEngine
 import com.andrometry.sync.queue.SyncQueue
 import dagger.Module
 import dagger.Provides
@@ -15,6 +18,9 @@ import javax.inject.Singleton
 
 /**
  * Hilt dependency injection module providing all app-level dependencies.
+ *
+ * Provides: Database, SequenceGenerator, RelayClient, SyncQueue,
+ *           ReadinessEngine, WorkPatternEngine, HabitEngine
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -61,5 +67,25 @@ object AppModule {
         relayClient: RelayClient
     ): SyncQueue {
         return SyncQueue(context, database, relayClient)
+    }
+
+    // Pure computation engines — no constructor dependencies beyond @Inject
+
+    @Provides
+    @Singleton
+    fun provideReadinessEngine(): ReadinessEngine {
+        return ReadinessEngine()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkPatternEngine(database: AndrometryDatabase): WorkPatternEngine {
+        return WorkPatternEngine(database)
+    }
+
+    @Provides
+    @Singleton
+    fun provideHabitEngine(database: AndrometryDatabase): HabitEngine {
+        return HabitEngine(database)
     }
 }
