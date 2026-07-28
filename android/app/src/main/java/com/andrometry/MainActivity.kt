@@ -41,9 +41,7 @@ class MainActivity : ComponentActivity() {
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Context : Screen("context", "Context", Icons.Default.Info)
-    object Permissions : Screen("permissions", "Permissions", Icons.Default.Lock)
     object Collectors : Screen("collectors", "Collectors", Icons.Default.List)
-    object Sync : Screen("sync", "Sync", Icons.Default.CloudUpload)
     object Timeline : Screen("timeline", "Timeline", Icons.Default.Timeline)
     object Inbox : Screen("inbox", "Inbox", Icons.Default.Inbox)
     object Privacy : Screen("privacy", "Privacy", Icons.Default.Security)
@@ -101,9 +99,7 @@ fun AndrometryApp() {
             modifier = Modifier.padding(padding)
         ) {
             composable(Screen.Context.route) { CurrentContextScreen() }
-            composable(Screen.Permissions.route) { PermissionStatusScreen() }
             composable(Screen.Collectors.route) { CollectorStatusScreen() }
-            composable(Screen.Sync.route) { SyncStatusScreen() }
             composable(Screen.Timeline.route) { DebugTimelineScreen() }
             composable(Screen.Inbox.route) { InterventionInboxScreen() }
             composable(Screen.Privacy.route) { PrivacyScreen() }
