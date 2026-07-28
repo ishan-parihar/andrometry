@@ -211,6 +211,9 @@ interface EventDao {
 
     @Query("SELECT MAX(sequence) FROM events WHERE deviceId = :deviceId")
     suspend fun getLastSequence(deviceId: String): Long?
+
+    @Query("SELECT * FROM events WHERE eventType = :eventType ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getByType(eventType: String, limit: Int = 50): List<EventEntity>
 }
 
 @Dao
@@ -239,6 +242,9 @@ interface SegmentDao {
     @Query("SELECT * FROM timeline_segments WHERE startTime >= :from AND startTime <= :to AND segmentType = :type ORDER BY startTime ASC")
     suspend fun getSegmentsByType(from: String, to: String, type: String): List<TimelineSegmentEntity>
 
+    @Query("SELECT * FROM timeline_segments WHERE segmentId = :segmentId")
+    suspend fun getById(segmentId: String): TimelineSegmentEntity?
+
     @Query("SELECT * FROM timeline_segments WHERE syncState = 'pending' ORDER BY startTime ASC")
     suspend fun getPendingSegments(): List<TimelineSegmentEntity>
 
@@ -254,6 +260,9 @@ interface FiveMinuteSummaryDao {
     @Query("SELECT * FROM five_minute_summary WHERE startTime = :startTime")
     suspend fun get(startTime: String): FiveMinuteSummaryEntity?
 
+    @Query("SELECT * FROM five_minute_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
+    suspend fun getInRange(from: String, to: String): List<FiveMinuteSummaryEntity>
+
     @Query("SELECT * FROM five_minute_summary ORDER BY startTime DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 100): List<FiveMinuteSummaryEntity>
 }
@@ -266,6 +275,9 @@ interface HourlySummaryDao {
     @Query("SELECT * FROM hourly_summary WHERE startTime = :startTime")
     suspend fun get(startTime: String): HourlySummaryEntity?
 
+    @Query("SELECT * FROM hourly_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
+    suspend fun getInRange(from: String, to: String): List<HourlySummaryEntity>
+
     @Query("SELECT * FROM hourly_summary ORDER BY startTime DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 48): List<HourlySummaryEntity>
 }
@@ -277,6 +289,9 @@ interface DailySummaryDao {
 
     @Query("SELECT * FROM daily_summary WHERE date = :date")
     suspend fun get(date: String): DailySummaryEntity?
+
+    @Query("SELECT * FROM daily_summary WHERE date = :date")
+    suspend fun getByDate(date: String): DailySummaryEntity?
 
     @Query("SELECT * FROM daily_summary ORDER BY date DESC LIMIT :limit")
     suspend fun getRecent(limit: Int = 7): List<DailySummaryEntity>
@@ -346,6 +361,9 @@ interface GoalDao {
 interface HabitDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(habit: HabitEntity)
+
+    @Query("SELECT * FROM habits")
+    suspend fun getAll(): List<HabitEntity>
 
     @Query("SELECT * FROM habits WHERE status = 'active'")
     suspend fun getActive(): List<HabitEntity>
