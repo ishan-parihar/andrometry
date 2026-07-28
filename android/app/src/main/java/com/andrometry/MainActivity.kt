@@ -20,7 +20,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.andrometry.ui.screens.*
 import com.andrometry.ui.theme.AndrometryTheme
+import com.andrometry.core.database.AndrometryDatabase
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 /**
  * Main Activity — the app entry point.
@@ -29,11 +31,14 @@ import dagger.hilt.android.AndroidEntryPoint
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var database: AndrometryDatabase
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AndrometryTheme {
-                AndrometryApp()
+                AndrometryApp(database)
             }
         }
     }
@@ -60,7 +65,7 @@ val bottomNavItems = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AndrometryApp() {
+fun AndrometryApp(database: AndrometryDatabase) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -150,7 +155,7 @@ fun AndrometryApp() {
             composable(Screen.Timeline.route) { DebugTimelineScreen() }
             composable(Screen.Inbox.route) { InterventionInboxScreen() }
             composable(Screen.Privacy.route) { PrivacyScreen() }
-            composable(Screen.Export.route) { ExportBackupScreen() }
+            composable(Screen.Export.route) { ExportBackupScreen(database) }
         }
     }
 }

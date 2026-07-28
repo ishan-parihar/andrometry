@@ -25,16 +25,19 @@ import java.util.*
  * Export/Backup Controls Screen — §6.4.8
  *
  * Provides JSON export, cloud backup, and restore functionality.
+ * Uses Hilt-injected database via parameter to avoid creating new Room instances.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExportBackupScreen() {
+fun ExportBackupScreen(database: AndrometryDatabase) {
     val context = LocalContext.current
     var lastExport by remember { mutableStateOf("Never") }
     var backupEnabled by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf("JSON") }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
+    var lastExportedFile by remember { mutableStateOf<File?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -88,16 +91,14 @@ fun ExportBackupScreen() {
                 }
             }
 
-            val coroutineScope = rememberCoroutineScope()
-
             Button(
                 onClick = {
                     coroutineScope.launch {
                         isExporting = true
-                        // Export data and generate file
                         val exportFile = withContext(Dispatchers.IO) {
-                            exportDataToFile(context, exportFormat)
+                            exportDataToFile(context, database, exportFormat)
                         }
+                        lastExportedFile = exportFile
                         lastExport = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.US).format(Date())
                         isExporting = false
 
@@ -153,15 +154,13 @@ fun ExportBackupScreen() {
 
             OutlinedButton(
                 onClick = {
-                    coroutineScope.launch {
-                        // Share data via Android share intent
-                        val exportFile = withContext(Dispatchers.IO) {
-                            exportDataToFile(context, "JSON")
-                        }
-                        if (exportFile != null) {
-                            shareFile(context, exportFile)
-                        } else {
-                            Toast.makeText(context, "Export first before sharing", Toast.LENGTH_SHORT).show()
+                    // Share cached file directly instead of re-exporting
+                    val fileToShare = lastExportedFile
+                    if (fileToShare != null && fileToShare.exists()) {
+                        shareFile(context, fileToShare)
+                    } else {
+                        coroutineScope.launch {
+                            Toast.makeText(context, "Export data first before sharing", Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
@@ -171,7 +170,6 @@ fun ExportBackupScreen() {
             }
         }
 
-        // Restore confirmation dialog
         if (showRestoreDialog) {
             AlertDialog(
                 onDismissRequest = { showRestoreDialog = false },
@@ -197,10 +195,7 @@ fun ExportBackupScreen() {
     }
 }
 
-/**
- * Exports data to a file in the specified format.
- */
-private suspend fun exportDataToFile(context: Context, format: String): File? {
+private suspend fun exportDataToFile(context: Context, database: AndrometryDatabase, format: String): File? {
     return try {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val fileName = "andrometry_export_${timestamp}.${format.lowercase()}"
@@ -208,9 +203,6 @@ private suspend fun exportDataToFile(context: Context, format: String): File? {
         if (!exportDir.exists()) exportDir.mkdirs()
 
         val exportFile = File(exportDir, fileName)
-
-        // Query database and generate export content
-        val database = AndrometryDatabase.create(context)
         val content = when (format) {
             "JSON" -> generateJsonExport(database)
             "CSV" -> generateCsvExport(database)
@@ -224,9 +216,6 @@ private suspend fun exportDataToFile(context: Context, format: String): File? {
     }
 }
 
-/**
- * Generates JSON export of all data.
- */
 private suspend fun generateJsonExport(database: AndrometryDatabase): String {
     val events = database.eventDao().getEventsInRange("1970-01-01", "2099-12-31", 10000)
     val segments = database.segmentDao().getSegmentsInRange("1970-01-01", "2099-12-31", 10000)
@@ -256,26 +245,20 @@ private suspend fun generateJsonExport(database: AndrometryDatabase): String {
     """.trimIndent()
 }
 
-/**
- * Generates CSV export of key data.
- */
 private suspend fun generateCsvExport(database: AndrometryDatabase): String {
     val sb = StringBuilder()
     sb.appendLine("type,id,timestamp,payload")
 
-    // Events
     val events = database.eventDao().getEventsInRange("1970-01-01", "2099-12-31", 10000)
     events.forEach { e ->
         sb.appendLine("event,${e.eventId},${e.timestamp},\"${e.payload.replace("\"", "\\\"")}\"")
     }
 
-    // Segments
     val segments = database.segmentDao().getSegmentsInRange("1970-01-01", "2099-12-31", 10000)
     segments.forEach { s ->
         sb.appendLine("segment,${s.segmentId},${s.startTime},\"${s.label}\"")
     }
 
-    // Habits
     val habits = database.habitDao().getAll()
     habits.forEach { h ->
         sb.appendLine("habit,${h.habitId},${h.createdAt},\"${h.habitType}: ${h.status}\"")
@@ -284,9 +267,6 @@ private suspend fun generateCsvExport(database: AndrometryDatabase): String {
     return sb.toString()
 }
 
-/**
- * Shares a file via Android share intent.
- */
 private fun shareFile(context: Context, file: File) {
     val uri = FileProvider.getUriForFile(
         context,
