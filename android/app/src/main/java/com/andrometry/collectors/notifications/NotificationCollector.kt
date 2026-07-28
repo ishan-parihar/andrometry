@@ -1,6 +1,5 @@
 package com.andrometry.collectors.notifications
 
-import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.andrometry.core.database.AndrometryDatabase
@@ -21,6 +20,9 @@ import javax.inject.Inject
  *
  * Tier 0 collection — event-driven, low battery impact.
  * Produces: notification_event events
+ *
+ * Includes debounce: rapid notifications from the same package within 1 second
+ * are collapsed to avoid flooding the DB.
  */
 @AndroidEntryPoint
 class NotificationCollector : NotificationListenerService() {
@@ -29,6 +31,10 @@ class NotificationCollector : NotificationListenerService() {
     @Inject lateinit var database: AndrometryDatabase
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Debounce: last notification per package with timestamp
+    private val lastNotificationByPackage = mutableMapOf<String, Long>()
+    private val DEBOUNCE_MS = 1000L // 1 second
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         scope.launch {
@@ -43,7 +49,15 @@ class NotificationCollector : NotificationListenerService() {
     }
 
     private suspend fun emitNotificationEvent(sbn: StatusBarNotification, posted: Boolean) {
-        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+        // Debounce: skip if same package within 1 second
+        val now = System.currentTimeMillis()
+        val lastTime = lastNotificationByPackage[sbn.packageName] ?: 0
+        if (now - lastTime < DEBOUNCE_MS) {
+            return
+        }
+        lastNotificationByPackage[sbn.packageName] = now
+
+        val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date())
 
@@ -59,7 +73,7 @@ class NotificationCollector : NotificationListenerService() {
             eventId = UUID.randomUUID().toString(),
             deviceId = android.os.Build.MODEL.replace(" ", "-").lowercase(),
             sequence = sequenceGenerator.next(),
-            timestamp = now,
+            timestamp = timestamp,
             timezone = TimeZone.getDefault().id,
             eventType = "notification_event",
             collector = "notification_listener",

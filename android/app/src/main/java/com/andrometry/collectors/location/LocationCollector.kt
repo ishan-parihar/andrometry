@@ -24,6 +24,7 @@ import javax.inject.Singleton
  * §9.4 — Do not send exact coordinates by default. Send semantic location.
  *
  * Properly injects AndrometryDatabase via Hilt DI (critical fix).
+ * Includes stop() method for lifecycle cleanup to prevent leaks.
  */
 @Singleton
 class LocationCollector @Inject constructor(
@@ -56,6 +57,7 @@ class LocationCollector @Inject constructor(
     private var lastPlaceEnteredMs: Long = 0L
     private var fusedLocationClient: FusedLocationProviderClient? = null
     private var geofencingClient: GeofencingClient? = null
+    private var locationCallback: LocationCallback? = null
 
     fun start(context: Context) {
         if (!hasLocationPermission(context)) return
@@ -65,6 +67,23 @@ class LocationCollector @Inject constructor(
 
         registerGeofences(context)
         startPassiveLocationUpdates(context)
+    }
+
+    /**
+     * Stops location updates and removes geofences to prevent leaks.
+     * Call this when the collector is no longer needed.
+     */
+    fun stop() {
+        locationCallback?.let { callback ->
+            fusedLocationClient?.removeLocationUpdates(callback)
+            locationCallback = null
+        }
+        geofencingClient?.let { client ->
+            client.removeGeofences(knownPlaces.map { it.name })
+        }
+        lastLocation = null
+        lastPlace = "unknown"
+        lastPlaceEnteredMs = 0L
     }
 
     private fun registerGeofences(context: Context) {
@@ -96,13 +115,15 @@ class LocationCollector @Inject constructor(
             .setMinUpdateIntervalMillis(5 * 60 * 1000L)
             .build()
 
-        fusedLocationClient?.requestLocationUpdates(request, object : LocationCallback() {
+        val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { location ->
                     processLocationUpdate(context, location)
                 }
             }
-        }, Looper.getMainLooper())
+        }
+        locationCallback = callback
+        fusedLocationClient?.requestLocationUpdates(request, callback, Looper.getMainLooper())
     }
 
     private fun processLocationUpdate(context: Context, location: Location) {
@@ -128,7 +149,6 @@ class LocationCollector @Inject constructor(
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date())
 
-        // Store event via Hilt-injected database
         val event = EventEntity(
             eventId = UUID.randomUUID().toString(),
             deviceId = android.os.Build.MODEL.replace(" ", "-").lowercase(),
@@ -142,7 +162,6 @@ class LocationCollector @Inject constructor(
         )
         database.eventDao().insert(event)
 
-        // If place changed, create place_visit segment
         if (placeChanged && lastPlace != "unknown" && lastPlaceEnteredMs > 0) {
             val enterTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")

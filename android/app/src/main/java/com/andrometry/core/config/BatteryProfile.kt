@@ -2,8 +2,6 @@ package com.andrometry.core.config
 
 import android.content.Context
 import android.os.BatteryManager
-import android.os.PowerManager
-import java.time.LocalTime
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,7 +44,7 @@ class BatteryProfileManager @Inject constructor() {
                 name = "eco",
                 appUsageIntervalMinutes = 30,
                 contextSnapshotIntervalMinutes = 15,
-                locationIntervalMinutes = 60, // geofence only
+                locationIntervalMinutes = 60,
                 healthSyncIntervalMinutes = 60,
                 syncIntervalMinutes = 30,
                 rawEventRetentionDays = 7,
@@ -81,9 +79,6 @@ class BatteryProfileManager @Inject constructor() {
     private var isWorkHours: Boolean = false
     private var isFocusActive: Boolean = false
 
-    /**
-     * Determines the appropriate profile based on current conditions.
-     */
     fun determineProfile(context: Context): Profile {
         val batteryLevel = getBatteryLevel(context)
         val isCharging = isCharging(context)
@@ -92,31 +87,16 @@ class BatteryProfileManager @Inject constructor() {
         isWorkHours = hour in 8..18
         val isNight = hour in 22..23 || hour in 0..6
 
-        // Priority rules
         return when {
-            // Battery critical → always Eco
             batteryLevel < 0.15 -> Profile.ECO
-
-            // Night time → Eco
             isNight && !isFocusActive -> Profile.ECO
-
-            // Charging during work hours → High Fidelity
             isCharging && isWorkHours -> Profile.HIGH_FIDELITY
-
-            // Focus session active → High Fidelity (temporarily)
             isFocusActive -> Profile.HIGH_FIDELITY
-
-            // Work hours → Balanced
             isWorkHours -> Profile.BALANCED
-
-            // Default → Eco for off-hours
             else -> Profile.ECO
         }
     }
 
-    /**
-     * Returns the config for the current profile.
-     */
     fun getConfig(): ProfileConfig {
         return when (currentProfile) {
             Profile.ECO -> ProfileConfig.ECO
@@ -125,29 +105,18 @@ class BatteryProfileManager @Inject constructor() {
         }
     }
 
-    /**
-     * Updates the current profile if conditions changed.
-     */
     fun updateProfile(context: Context): Profile {
         val newProfile = determineProfile(context)
         if (newProfile != currentProfile) {
-            val oldProfile = currentProfile
             currentProfile = newProfile
-            // Log profile change — would be sent as an event
         }
         return currentProfile
     }
 
-    /**
-     * Temporarily boosts fidelity for focus sessions.
-     */
     fun onFocusSessionStart() {
         isFocusActive = true
     }
 
-    /**
-     * Returns to normal profile after focus session ends.
-     */
     fun onFocusSessionEnd() {
         isFocusActive = false
     }
@@ -160,10 +129,5 @@ class BatteryProfileManager @Inject constructor() {
     private fun isCharging(context: Context): Boolean {
         val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         return batteryManager.isCharging
-    }
-
-    private fun isPowerSaveMode(context: Context): Boolean {
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return powerManager.isPowerSaveMode
     }
 }
