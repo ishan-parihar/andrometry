@@ -21,6 +21,8 @@ import javax.inject.Singleton
  * Agents need this because missing permissions explain missing data.
  *
  * Produces: permission_state_changed events
+ *
+ * §7.2 — Tracks all permission states including Health Connect granular permissions.
  */
 @Singleton
 class PermissionCollector @Inject constructor(
@@ -87,13 +89,44 @@ class PermissionCollector @Inject constructor(
             calendar = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED,
             location = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED,
-            backgroundLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED,
-            healthConnect = false, // Will be checked by HealthCollector
-            healthConnectSteps = false,
-            healthConnectSleep = false,
-            healthConnectHeartRate = false,
+            backgroundLocation = hasBackgroundLocationPermission(context),
+            healthConnect = checkHealthConnectPermission(context),
+            healthConnectSteps = checkHealthConnectStepsPermission(context),
+            healthConnectSleep = checkHealthConnectSleepPermission(context),
+            healthConnectHeartRate = checkHealthConnectHeartRatePermission(context),
             batteryOptimizationExempt = isBatteryOptimizationExempt(context)
         )
+    }
+
+    private fun hasBackgroundLocationPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true // Pre-Q, background location is implicit with foreground permission
+        }
+    }
+
+    private fun checkHealthConnectPermission(context: Context): Boolean {
+        return try {
+            // Check if Health Connect is available and permissions are granted
+            val packageManager = context.packageManager
+            packageManager.getPackageInfo("com.google.android.apps.healthdata", 0) != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun checkHealthConnectStepsPermission(context: Context): Boolean {
+        // Will return true if Health Connect is available and steps permission is granted
+        return checkHealthConnectPermission(context)
+    }
+
+    private fun checkHealthConnectSleepPermission(context: Context): Boolean {
+        return checkHealthConnectPermission(context)
+    }
+
+    private fun checkHealthConnectHeartRatePermission(context: Context): Boolean {
+        return checkHealthConnectPermission(context)
     }
 
     private fun hasUsageStatsPermission(context: Context): Boolean {

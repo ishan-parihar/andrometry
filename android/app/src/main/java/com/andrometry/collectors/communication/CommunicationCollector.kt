@@ -4,6 +4,8 @@ import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import com.google.gson.Gson
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -15,6 +17,8 @@ import javax.inject.Singleton
  * Uses salted hashes for contact identity if needed for pattern recognition.
  *
  * Produces: communication_summary events
+ *
+ * Thread-safe: uses Mutex to protect shared state accessed from multiple coroutines.
  */
 @Singleton
 class CommunicationCollector @Inject constructor(
@@ -30,13 +34,14 @@ class CommunicationCollector @Inject constructor(
         val contactHashes: MutableSet<String> = mutableSetOf()
     )
 
+    private val mutex = Mutex()
     private var currentHourSummary = CommunicationSummary()
     private var currentHourStart = System.currentTimeMillis()
 
     /**
      * Records an incoming call from notification metadata.
      */
-    suspend fun recordIncomingCall() {
+    suspend fun recordIncomingCall() = mutex.withLock {
         currentHourSummary.callsIncoming++
         emitSummaryIfNeeded()
     }
@@ -44,7 +49,7 @@ class CommunicationCollector @Inject constructor(
     /**
      * Records an outgoing call.
      */
-    suspend fun recordOutgoingCall() {
+    suspend fun recordOutgoingCall() = mutex.withLock {
         currentHourSummary.callsOutgoing++
         emitSummaryIfNeeded()
     }
@@ -52,14 +57,14 @@ class CommunicationCollector @Inject constructor(
     /**
      * Records call duration in minutes.
      */
-    suspend fun recordCallDuration(minutes: Int) {
+    suspend fun recordCallDuration(minutes: Int) = mutex.withLock {
         currentHourSummary.callMinutes += minutes
     }
 
     /**
      * Records received SMS from notification metadata.
      */
-    suspend fun recordSmsReceived() {
+    suspend fun recordSmsReceived() = mutex.withLock {
         currentHourSummary.smsReceived++
         emitSummaryIfNeeded()
     }
@@ -67,7 +72,7 @@ class CommunicationCollector @Inject constructor(
     /**
      * Records sent SMS.
      */
-    suspend fun recordSmsSent() {
+    suspend fun recordSmsSent() = mutex.withLock {
         currentHourSummary.smsSent++
         emitSummaryIfNeeded()
     }
@@ -83,21 +88,22 @@ class CommunicationCollector @Inject constructor(
     /**
      * Emits the current hour's communication summary.
      */
-    suspend fun emitSummary() {
+    private suspend fun emitSummary() {
         if (currentHourSummary.callsIncoming == 0 && currentHourSummary.callsOutgoing == 0 &&
             currentHourSummary.smsReceived == 0 && currentHourSummary.smsSent == 0) {
             return
         }
 
-        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
-        }.format(Date())
+        }
 
-        val startTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }.format(Date(currentHourStart))
+        val now = sdf.format(Date())
+        val startTime = sdf.format(Date(currentHourStart))
 
         val payload = mapOf(
+            "start" to startTime,
+            "end" to now,
             "calls_incoming" to currentHourSummary.callsIncoming,
             "calls_outgoing" to currentHourSummary.callsOutgoing,
             "call_minutes" to currentHourSummary.callMinutes,

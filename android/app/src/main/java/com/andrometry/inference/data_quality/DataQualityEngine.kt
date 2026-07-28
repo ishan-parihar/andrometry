@@ -6,6 +6,8 @@ import javax.inject.Singleton
 /**
  * Data quality engine — tracks data completeness, staleness, and collector health.
  * Attached to every context snapshot so agents know when not to trust a conclusion.
+ *
+ * Implements clock drift detection (§23.3) and app health telemetry (§23.5).
  */
 @Singleton
 class DataQualityEngine @Inject constructor() {
@@ -34,7 +36,20 @@ class DataQualityEngine @Inject constructor() {
         val degraded: Boolean = false
     )
 
+    data class AppHealthTelemetry(
+        val queueDepth: Int,
+        val collectorHealth: Map<String, CollectorHealth>,
+        val syncFailureCount: Int,
+        val lastSyncSuccessMs: Long,
+        val dbSizeBytes: Long,
+        val uptimeMs: Long
+    )
+
     private val collectorHealthMap = mutableMapOf<String, CollectorHealth>()
+    private var syncFailureCount = 0
+    private var lastSyncSuccessMs = 0L
+    private var lastServerTimeMs = 0L
+    private val driftHistory = mutableListOf<Long>()
 
     /**
      * Records a collector update.
@@ -48,6 +63,38 @@ class DataQualityEngine @Inject constructor() {
             errorCount = (existing?.errorCount ?: 0) + if (error) 1 else 0,
             degraded = error || (existing?.errorCount ?: 0) > 3
         )
+    }
+
+    /**
+     * Records a sync result for telemetry.
+     */
+    fun recordSyncResult(success: Boolean) {
+        if (success) {
+            lastSyncSuccessMs = System.currentTimeMillis()
+            syncFailureCount = 0
+        } else {
+            syncFailureCount++
+        }
+    }
+
+    /**
+     * Checks for clock drift between device and server time (§23.3).
+     * Uses a rolling window of 5 samples to detect persistent drift.
+     */
+    fun checkClockDrift(serverTimeMs: Long, deviceTimeMs: Long, thresholdMs: Long = 300000): Boolean {
+        val drift = deviceTimeMs - serverTimeMs
+        driftHistory.add(drift)
+        if (driftHistory.size > 5) driftHistory.removeAt(0)
+
+        lastServerTimeMs = serverTimeMs
+
+        // Persistent drift: if average drift exceeds threshold for multiple samples
+        if (driftHistory.size >= 3) {
+            val avgDrift = driftHistory.average()
+            return kotlin.math.abs(avgDrift) > thresholdMs
+        }
+
+        return kotlin.math.abs(drift) > thresholdMs
     }
 
     /**
@@ -81,6 +128,13 @@ class DataQualityEngine @Inject constructor() {
         val locationFresh = (collectorHealthMap["location"]?.lastUpdateMs ?: 0) >
                             (System.currentTimeMillis() - 900000) // 15 min
 
+        // Check clock drift using last known server time
+        val clockDriftDetected = if (lastServerTimeMs > 0) {
+            checkClockDrift(lastServerTimeMs, System.currentTimeMillis())
+        } else {
+            false
+        }
+
         return DataQuality(
             completeness = completeness,
             stalenessSeconds = lastSyncMinutesAgo * 60,
@@ -94,14 +148,21 @@ class DataQualityEngine @Inject constructor() {
             missingCollectors = missingCollectors,
             degradedCollectors = degradedCollectors,
             permissionIssues = permissionIssues,
-            clockDriftDetected = false
+            clockDriftDetected = clockDriftDetected
         )
     }
 
     /**
-     * Checks for clock drift between device and server time.
+     * Generates app health telemetry (§23.5).
      */
-    fun checkClockDrift(serverTimeMs: Long, deviceTimeMs: Long, thresholdMs: Long = 300000): Boolean {
-        return kotlin.math.abs(serverTimeMs - deviceTimeMs) > thresholdMs
+    fun getHealthTelemetry(queueDepth: Int = 0, dbSizeBytes: Long = 0): AppHealthTelemetry {
+        return AppHealthTelemetry(
+            queueDepth = queueDepth,
+            collectorHealth = collectorHealthMap.toMap(),
+            syncFailureCount = syncFailureCount,
+            lastSyncSuccessMs = lastSyncSuccessMs,
+            dbSizeBytes = dbSizeBytes,
+            uptimeMs = System.currentTimeMillis()
+        )
     }
 }
