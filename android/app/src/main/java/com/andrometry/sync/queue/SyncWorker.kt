@@ -3,6 +3,7 @@ package com.andrometry.sync.queue
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
+import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.network.BatchRequest
 import com.andrometry.core.network.RelayClient
@@ -13,17 +14,24 @@ import java.util.concurrent.TimeUnit
 
 /**
  * HiltWorker for periodic sync — properly integrates with Hilt DI.
+ * Respects sensitive mode: if active, sync is paused (§33 Policy Governor).
  */
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
     private val database: AndrometryDatabase,
-    private val relayClient: RelayClient
+    private val relayClient: RelayClient,
+    private val sensitiveModeManager: SensitiveModeManager
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         return try {
+            // §33: Pause sync when sensitive mode is active
+            if (sensitiveModeManager.shouldPauseSync()) {
+                return Result.success()
+            }
+
             val pendingEvents = database.eventDao().getPendingEvents()
             val pendingSegments = database.segmentDao().getPendingSegments()
 

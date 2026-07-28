@@ -480,3 +480,135 @@ func TestPolicyGovernor_highSeverityApproved(t *testing.T) {
 		t.Error("high severity should be approved")
 	}
 }
+
+// --- New endpoint tests ---
+
+func TestGetFiveMinuteSummaries_empty(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/summary/five_minute?from=2026-01-01T00:00:00Z&to=2026-01-01T23:59:59Z", nil)
+	req = req.WithContext(withUserContext("primary"))
+
+	w := httptest.NewRecorder()
+	h.GetFiveMinuteSummaries(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	summaries := resp["summaries"].([]interface{})
+	if len(summaries) != 0 {
+		t.Errorf("summaries count = %d, want 0", len(summaries))
+	}
+}
+
+func TestGetHourlySummaries_empty(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/summary/hourly?from=2026-01-01T00:00:00Z&to=2026-01-01T23:59:59Z", nil)
+	req = req.WithContext(withUserContext("primary"))
+
+	w := httptest.NewRecorder()
+	h.GetHourlySummaries(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	summaries := resp["summaries"].([]interface{})
+	if len(summaries) != 0 {
+		t.Errorf("summaries count = %d, want 0", len(summaries))
+	}
+}
+
+func TestGetBaselines_empty(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/baselines", nil)
+	req = req.WithContext(withUserContext("primary"))
+
+	w := httptest.NewRecorder()
+	h.GetBaselines(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	baselines := resp["baselines"].([]interface{})
+	if len(baselines) != 0 {
+		t.Errorf("baselines count = %d, want 0", len(baselines))
+	}
+}
+
+func TestPostBaseline_andGet(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	baseline := map[string]interface{}{
+		"metric_name": "deep_work_minutes",
+		"window_days": 7,
+		"value":       120.5,
+	}
+
+	body, _ := json.Marshal(baseline)
+	req := httptest.NewRequest("POST", "/v1/baselines", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+
+	w := httptest.NewRecorder()
+	h.PostBaseline(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusCreated)
+	}
+
+	req2 := httptest.NewRequest("GET", "/v1/baselines", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetBaselines(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("get baselines status = %d, want %d", w2.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	baselines := resp["baselines"].([]interface{})
+	if len(baselines) != 1 {
+		t.Fatalf("baselines count = %d, want 1", len(baselines))
+	}
+}
+
+func TestPostUserCorrection(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	correction := map[string]interface{}{
+		"correction_type": "label",
+		"segment_id":      "seg-999",
+		"new_label":       "deep_work",
+		"reason":          "user_corrected",
+	}
+
+	body, _ := json.Marshal(correction)
+	req := httptest.NewRequest("POST", "/v1/corrections", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+
+	w := httptest.NewRecorder()
+	h.PostUserCorrection(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusCreated)
+	}
+
+	var resp map[string]string
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != "created" {
+		t.Errorf("status = %v, want created", resp["status"])
+	}
+}

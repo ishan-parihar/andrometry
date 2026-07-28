@@ -66,23 +66,20 @@ class SensitiveModeManager @Inject constructor(
 
     /** Check if location should be redacted. */
     suspend fun shouldRedactLocation(): Boolean {
-        val sensitive = dataStore.data.first()[KEY_SENSITIVE_MODE] ?: false
-        val setting = dataStore.data.first()[KEY_REDACT_LOCATION] ?: false
-        return sensitive || setting
+        val prefs = dataStore.data.first()
+        return prefs[KEY_SENSITIVE_MODE] == true || prefs[KEY_REDACT_LOCATION] == true
     }
 
     /** Check if app usage should be redacted (show categories only). */
     suspend fun shouldRedactAppUsage(): Boolean {
-        val sensitive = dataStore.data.first()[KEY_SENSITIVE_MODE] ?: false
-        val setting = dataStore.data.first()[KEY_REDACT_APP_USAGE] ?: false
-        return sensitive || setting
+        val prefs = dataStore.data.first()
+        return prefs[KEY_SENSITIVE_MODE] == true || prefs[KEY_REDACT_APP_USAGE] == true
     }
 
     /** Check if calendar titles should be redacted. */
     suspend fun shouldRedactCalendar(): Boolean {
-        val sensitive = dataStore.data.first()[KEY_SENSITIVE_MODE] ?: false
-        val setting = dataStore.data.first()[KEY_REDACT_CALENDAR] ?: true
-        return sensitive || setting
+        val prefs = dataStore.data.first()
+        return prefs[KEY_SENSITIVE_MODE] == true || prefs[KEY_REDACT_CALENDAR] == true
     }
 
     /** Enable sensitive mode. */

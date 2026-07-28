@@ -4,11 +4,9 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.andrometry.core.database.AndrometryDatabase
-import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.collectors.usage.UsageCollector
 import com.andrometry.collectors.health.HealthCollector
-import com.andrometry.collectors.calendar.CalendarCollector
 import com.andrometry.inference.segments.SegmentEngine
 import com.andrometry.inference.context.ContextInferenceEngine
 import com.andrometry.summaries.five_minute.FiveMinuteSummaryEngine
@@ -42,7 +40,6 @@ class CollectorScheduler @Inject constructor() {
     companion object {
         const val WORK_USAGE = "andrometry_collector_usage"
         const val WORK_HEALTH = "andrometry_collector_health"
-        const val WORK_CALENDAR = "andrometry_collector_calendar"
         const val WORK_FIVE_MIN = "andrometry_collector_five_minute"
         const val WORK_HOURLY = "andrometry_collector_hourly"
         const val WORK_SEGMENT = "andrometry_collector_segment"
@@ -52,7 +49,6 @@ class CollectorScheduler @Inject constructor() {
     fun scheduleAll(context: Context) {
         scheduleUsageCollector(context)
         scheduleHealthCollector(context)
-        scheduleCalendarCollector(context)
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
         scheduleSegmentation(context)
@@ -96,25 +92,6 @@ class CollectorScheduler @Inject constructor() {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_HEALTH, ExistingPeriodicWorkPolicy.KEEP, work
-        )
-    }
-
-    /**
-     * Calendar: every 15 min (Tier 1)
-     */
-    private fun scheduleCalendarCollector(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
-            .build()
-
-        val work = PeriodicWorkRequestBuilder<CalendarCollectorWorker>(
-            15, TimeUnit.MINUTES
-        ).setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_CALENDAR, ExistingPeriodicWorkPolicy.KEEP, work
         )
     }
 
@@ -235,25 +212,6 @@ class HealthCollectorWorker @AssistedInject constructor(
             for (event in events) {
                 database.eventDao().insert(event)
             }
-            Result.success()
-        } catch (e: Exception) {
-            Result.retry()
-        }
-    }
-}
-
-@HiltWorker
-class CalendarCollectorWorker @AssistedInject constructor(
-    @Assisted appContext: Context,
-    @Assisted params: WorkerParameters,
-    private val database: AndrometryDatabase,
-    private val sequenceGenerator: SequenceGenerator
-) : CoroutineWorker(appContext, params) {
-
-    override suspend fun doWork(): Result {
-        // CalendarCollector uses ContentObserver for real-time updates.
-        // This worker does periodic reconciliation.
-        return try {
             Result.success()
         } catch (e: Exception) {
             Result.retry()
