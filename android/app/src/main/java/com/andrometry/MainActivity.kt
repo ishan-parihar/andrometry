@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Context : Screen("context", "Context", Icons.Default.Info)
     object Collectors : Screen("collectors", "Collectors", Icons.Default.List)
+    object Permissions : Screen("permissions", "Permissions", Icons.Default.Lock)
+    object Sync : Screen("sync", "Sync", Icons.Default.CloudUpload)
     object Timeline : Screen("timeline", "Timeline", Icons.Default.Timeline)
     object Inbox : Screen("inbox", "Inbox", Icons.Default.Inbox)
     object Privacy : Screen("privacy", "Privacy", Icons.Default.Security)
@@ -65,11 +67,54 @@ fun AndrometryApp() {
 
     Scaffold(
         topBar = {
+            var menuExpanded by remember { mutableStateOf(false) }
             TopAppBar(
                 title = { Text("Andrometry", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                ),
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Permissions") },
+                                onClick = {
+                                    menuExpanded = false
+                                    navController.navigate(Screen.Permissions.route) {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                leadingIcon = { Icon(Screen.Permissions.icon, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Sync") },
+                                onClick = {
+                                    menuExpanded = false
+                                    navController.navigate(Screen.Sync.route) {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                leadingIcon = { Icon(Screen.Sync.icon, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export") },
+                                onClick = {
+                                    menuExpanded = false
+                                    navController.navigate(Screen.Export.route) {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                leadingIcon = { Icon(Screen.Export.icon, null) }
+                            )
+                        }
+                    }
+                }
             )
         },
         bottomBar = {
@@ -100,6 +145,8 @@ fun AndrometryApp() {
         ) {
             composable(Screen.Context.route) { CurrentContextScreen() }
             composable(Screen.Collectors.route) { CollectorStatusScreen() }
+            composable(Screen.Permissions.route) { PermissionStatusScreen() }
+            composable(Screen.Sync.route) { SyncStatusScreen() }
             composable(Screen.Timeline.route) { DebugTimelineScreen() }
             composable(Screen.Inbox.route) { InterventionInboxScreen() }
             composable(Screen.Privacy.route) { PrivacyScreen() }
