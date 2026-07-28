@@ -158,17 +158,22 @@ class AppCategoryEngine @Inject constructor(
     }
 
     private fun getCategoryFromAndroid(category: Int): String? {
+        // Raw int values to avoid SDK version resolution issues
         return when (category) {
-            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "productivity"
-            ApplicationInfo.CATEGORY_SOCIAL -> "social"
-            ApplicationInfo.CATEGORY_NEWS -> "news"
-            ApplicationInfo.CATEGORY_MAPS -> "maps"
-            ApplicationInfo.CATEGORY_ENTERTAINMENT -> "entertainment"
-            ApplicationInfo.CATEGORY_TRAVEL -> "travel"
-            ApplicationInfo.CATEGORY_SHOPPING -> "shopping"
-            ApplicationInfo.CATEGORY_FINANCE -> "finance"
-            ApplicationInfo.CATEGORY_HEALTH -> "health"
-            ApplicationInfo.CATEGORY_EDUCATION -> "learning"
+            0 -> null // CATEGORY_UNDEFINED
+            1 -> "game"
+            2 -> "social"
+            3 -> "news"
+            4 -> "maps"
+            5 -> "entertainment"
+            6 -> "education"
+            7 -> "shopping"
+            8 -> "business"
+            9 -> "productivity"
+            10 -> "travel"
+            11 -> "finance"
+            12 -> "health"
+            13 -> "tools"
             else -> null
         }
     }

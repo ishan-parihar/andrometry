@@ -48,7 +48,7 @@ class HabitEngine @Inject constructor(
         val evidenceSources: List<String>,
         val status: String = "active",
         val streakDays: Int = 0,
-        val habitStrength: Double = 0.0,
+        val habitStrength: Double? = null,
         val createdAt: String,
         val updatedAt: String
     )
@@ -133,7 +133,7 @@ class HabitEngine @Inject constructor(
 
         // Calculate new habit strength using EMA (§38.3)
         val completionValue = if (completed) 1.0 else 0.0
-        val newStrength = habit.habitStrength * STRENGTH_DECAY + completionValue * (1 - STRENGTH_DECAY)
+        val newStrength = (habit.habitStrength ?: 0.0) * STRENGTH_DECAY + completionValue * (1 - STRENGTH_DECAY)
 
         // Update habit in database
         val updatedHabit = habit.copy(
@@ -213,7 +213,7 @@ class HabitEngine @Inject constructor(
             currentStreak = habit.streakDays,
             longestStreak = longestStreak,
             completionRate = completionRate,
-            habitStrength = habit.habitStrength,
+            habitStrength = habit.habitStrength ?: 0.0,
             totalCompletions = completedDays.size,
             totalDays = totalDays,
             lastCompletedDate = completedDays.maxOrNull(),
@@ -229,7 +229,10 @@ class HabitEngine @Inject constructor(
         val habit = habits.find { it.habitId == habitId } ?: return false
 
         val today = SimpleDateFormat("EEEE", Locale.US).format(Date()).lowercase()
-        val scheduleDays = habit.schedule["days"] as? List<*> ?: return false
+        val scheduleMap = try {
+            Gson().fromJson(habit.schedule, Map::class.java) as? Map<String, Any>
+        } catch (e: Exception) { null } ?: return false
+        val scheduleDays = scheduleMap["days"] as? List<*> ?: return false
 
         return today in scheduleDays
     }

@@ -126,13 +126,21 @@ class LocationCollector @Inject constructor(
             .addGeofences(geofences)
             .build()
 
-        geofencingClient?.addGeofences(request, null)
+        geofencingClient?.let { client ->
+            val intent = android.content.Intent(context, com.andrometry.collectors.device.BootReceiver::class.java)
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                context, 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+            )
+            client.addGeofences(request, pendingIntent)
+        }
     }
 
     private fun startPassiveLocationUpdates(context: Context) {
         if (!hasLocationPermission(context)) return
 
-        val request = LocationRequest.Builder(Priority.PASSIVE_UPDATE, 15 * 60 * 1000L)
+        @Suppress("MissingPermission")
+        val request = LocationRequest.Builder(Priority.PRIORITY_PASSIVE, 15 * 60 * 1000L)
             .setMinUpdateIntervalMillis(5 * 60 * 1000L)
             .build()
 
@@ -148,68 +156,70 @@ class LocationCollector @Inject constructor(
     }
 
     private fun processLocationUpdate(context: Context, location: Location) {
-        val detectedPlace = detectPlace(location)
-        val movement = classifyMovement(location)
-        val placeChanged = detectedPlace != lastPlace
+        scope.launch {
+            val detectedPlace = detectPlace(location)
+            val movement = classifyMovement(location)
+            val placeChanged = detectedPlace != lastPlace
 
-        val locationContext = LocationContext(
-            place = detectedPlace,
-            confidence = if (detectedPlace != "unknown") 0.9 else 0.5,
-            movement = movement,
-            changed = placeChanged
-        )
-
-        // §33: Use cached redaction state (updated every 5 min on background thread)
-        val redactLocation = cachedRedactLocation
-        val displayPlace = if (redactLocation) "[redacted]" else locationContext.place
-        val payload = mapOf(
-            "place" to displayPlace,
-            "confidence" to locationContext.confidence,
-            "movement" to locationContext.movement,
-            "changed" to locationContext.changed
-        )
-
-        val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }.format(Date())
-
-        val event = EventEntity(
-            eventId = UUID.randomUUID().toString(),
-            deviceId = android.os.Build.MODEL.replace(" ", "-").lowercase(),
-            sequence = sequenceGenerator.next(),
-            timestamp = now,
-            timezone = TimeZone.getDefault().id,
-            eventType = "location_context",
-            collector = "geofence",
-            source = "geofence",
-            payload = Gson().toJson(payload)
-        )
-        database.eventDao().insert(event)
-
-        if (placeChanged && lastPlace != "unknown" && lastPlaceEnteredMs > 0) {
-            val enterTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }.format(Date(lastPlaceEnteredMs))
-
-            val segment = TimelineSegmentEntity(
-                segmentId = UUID.randomUUID().toString(),
-                segmentType = "place_visit",
-                layer = "place",
-                startTime = enterTime,
-                endTime = now,
-                label = if (cachedRedactLocation) "[redacted]" else lastPlace,
-                confidence = 0.88,
-                validFrom = enterTime,
-                ingestedAt = now,
-                payload = Gson().toJson(mapOf("confidence" to 0.88))
+            val locationContext = LocationContext(
+                place = detectedPlace,
+                confidence = if (detectedPlace != "unknown") 0.9 else 0.5,
+                movement = movement,
+                changed = placeChanged
             )
-            database.segmentDao().upsert(segment)
-        }
 
-        lastLocation = location
-        if (placeChanged) {
-            lastPlace = detectedPlace
-            lastPlaceEnteredMs = System.currentTimeMillis()
+            // §33: Use cached redaction state (updated every 5 min on background thread)
+            val redactLocation = cachedRedactLocation
+            val displayPlace = if (redactLocation) "[redacted]" else locationContext.place
+            val payload = mapOf(
+                "place" to displayPlace,
+                "confidence" to locationContext.confidence,
+                "movement" to locationContext.movement,
+                "changed" to locationContext.changed
+            )
+
+            val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }.format(Date())
+
+            val event = EventEntity(
+                eventId = UUID.randomUUID().toString(),
+                deviceId = android.os.Build.MODEL.replace(" ", "-").lowercase(),
+                sequence = sequenceGenerator.next(),
+                timestamp = now,
+                timezone = TimeZone.getDefault().id,
+                eventType = "location_context",
+                collector = "geofence",
+                source = "geofence",
+                payload = Gson().toJson(payload)
+            )
+            database.eventDao().insert(event)
+
+            if (placeChanged && lastPlace != "unknown" && lastPlaceEnteredMs > 0) {
+                val enterTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }.format(Date(lastPlaceEnteredMs))
+
+                val segment = TimelineSegmentEntity(
+                    segmentId = UUID.randomUUID().toString(),
+                    segmentType = "place_visit",
+                    layer = "place",
+                    startTime = enterTime,
+                    endTime = now,
+                    label = if (cachedRedactLocation) "[redacted]" else lastPlace,
+                    confidence = 0.88,
+                    validFrom = enterTime,
+                    ingestedAt = now,
+                    payload = Gson().toJson(mapOf("confidence" to 0.88))
+                )
+                database.segmentDao().upsert(segment)
+            }
+
+            lastLocation = location
+            if (placeChanged) {
+                lastPlace = detectedPlace
+                lastPlaceEnteredMs = System.currentTimeMillis()
+            }
         }
     }
 

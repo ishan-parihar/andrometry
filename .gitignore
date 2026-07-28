@@ -1,1 +1,9 @@
 server/andrometry
+
+# Android build artifacts
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradlew.bat

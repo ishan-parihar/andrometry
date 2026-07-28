@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -75,8 +75,9 @@ fun PermissionStatusScreen() {
                 )
             }
 
-            items(permissionState.entries.toList()) { (name, granted) ->
-                PermissionItem(name = name, granted = granted)
+            items(permissionState.entries.toList().size) { index ->
+                val entry = permissionState.entries.toList()[index]
+                PermissionItem(name = entry.key, granted = entry.value)
             }
 
             item {
@@ -126,7 +127,7 @@ private fun PermissionItem(name: String, granted: Boolean) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (granted) Icons.Default.CheckCircle else Icons.Default.Error,
+                imageVector = if (granted) Icons.Default.CheckCircle else Icons.Default.Cancel,
                 contentDescription = if (granted) "Granted" else "Denied",
                 tint = if (granted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(24.dp)

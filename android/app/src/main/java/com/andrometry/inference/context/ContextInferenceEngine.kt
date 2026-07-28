@@ -157,7 +157,10 @@ class ContextInferenceEngine @Inject constructor() {
         }
         val stalenessSeconds = if (oldestEvent != null) {
             val ts = parseTimestamp(oldestEvent.timestamp)
-            if (ts != null) ((now.timeInMillis - ts.timeInMillis) / 1000).toInt() else 999
+            if (ts != null) {
+                val diffMs = now.timeInMillis - ts.time
+                (diffMs / 1000L).toInt()
+            } else 999
         } else 999
 
         // Data completeness

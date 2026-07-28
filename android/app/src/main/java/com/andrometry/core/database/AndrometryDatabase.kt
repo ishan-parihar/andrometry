@@ -22,7 +22,7 @@ data class EventEntity(
     val schemaVersion: Int = 1,
     val payload: String,
     val syncState: String = "pending",
-    val createdAt: String = "datetime('now')"
+    val createdAt: String = ""
 )
 
 @Entity(tableName = "current_context")
@@ -95,7 +95,7 @@ data class AgentObservationEntity(
     val severity: String,
     val payload: String,
     val delivered: Boolean = false,
-    val createdAt: String = "datetime('now')"
+    val createdAt: String = ""
 )
 
 @Entity(tableName = "interventions")
@@ -106,6 +106,7 @@ data class InterventionEntity(
     val interventionType: String,
     val status: String = "proposed",
     val payload: String,
+    val createdAt: String = "",
     val syncState: String = "pending"
 )
 
@@ -142,8 +143,8 @@ data class HabitEntity(
     val status: String = "active",
     val streakDays: Int = 0,
     val habitStrength: Double? = null,
-    val createdAt: String = "datetime('now')",
-    val updatedAt: String = "datetime('now')",
+    val createdAt: String = "",
+    val updatedAt: String = "",
     val syncState: String = "pending"
 )
 
@@ -204,10 +205,12 @@ interface EventDao {
     suspend fun getPendingEvents(): List<EventEntity>
 
     @Query("UPDATE events SET syncState = 'uploaded' WHERE eventId IN (:ids)")
-    suspend fun markUploaded(ids: List<String>)    @Query("SELECT * FROM events WHERE timestamp >= :from AND timestamp <= :to ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun markUploaded(ids: List<String>)
+
+    @Query("SELECT * FROM events WHERE timestamp >= :from AND timestamp <= :to ORDER BY timestamp DESC LIMIT :limit")
     suspend fun getEventsInRange(from: String, to: String, limit: Int = 200): List<EventEntity>
 
-    @Query("DELETE FROM events WHERE createdAt < datetime('now', '-14 days')")
+    @Query("DELETE FROM events WHERE createdAt != '' AND createdAt < datetime('now', '-14 days')")
     suspend fun pruneOldEvents()
 
     @Query("SELECT MAX(sequence) FROM events WHERE deviceId = :deviceId")
@@ -426,7 +429,6 @@ interface PermissionStateDao {
     version = 3,
     exportSchema = false
 )
-@TypeConverters(Converters::class)
 abstract class AndrometryDatabase : RoomDatabase() {
     abstract fun eventDao(): EventDao
     abstract fun contextDao(): ContextDao
@@ -458,8 +460,4 @@ abstract class AndrometryDatabase : RoomDatabase() {
             .build()
         }
     }
-}
-
-class Converters {
-    // Add type converters if needed for complex types
 }

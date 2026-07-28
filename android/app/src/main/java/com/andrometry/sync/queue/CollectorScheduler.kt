@@ -45,7 +45,8 @@ class CollectorScheduler @Inject constructor() {
         const val WORK_FIVE_MIN = "andrometry_collector_five_minute"
         const val WORK_HOURLY = "andrometry_collector_hourly"
         const val WORK_SEGMENT = "andrometry_collector_segment"
-        const val WORK_CONTEXT = "andrometry_collector_context"        const val WORK_PERMISSIONS = "andrometry_collector_permissions"
+        const val WORK_CONTEXT = "andrometry_collector_context"
+        const val WORK_PERMISSIONS = "andrometry_collector_permissions"
     }
 
     fun scheduleAll(context: Context) {
@@ -54,7 +55,8 @@ class CollectorScheduler @Inject constructor() {
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
         scheduleSegmentation(context)
-        scheduleContextSnapshot(context)        schedulePermissionCheck(context)
+        scheduleContextSnapshot(context)
+        schedulePermissionCheck(context)
     }
 
     /**
@@ -170,22 +172,6 @@ class CollectorScheduler @Inject constructor() {
     }
 
     /**
-     * Outcome processing: every 60 min (§35)
-     */
-    private fun scheduleOutcomeProcessing(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
-            .build()
-
-        val work = PeriodicWorkRequestBuilder<OutcomeProcessingWorker>(
-            60, TimeUnit.MINUTES
-        ).setConstraints(constraints)
-            .build()        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_OUTCOMES, ExistingPeriodicWorkPolicy.KEEP, work
-        )
-    }
-
-    /**
      * Permission state check: every 15 min (§7.2)
      */
     private fun schedulePermissionCheck(context: Context) {
@@ -202,8 +188,7 @@ class CollectorScheduler @Inject constructor() {
             WORK_PERMISSIONS, ExistingPeriodicWorkPolicy.KEEP, work
         )
     }
-
-
+}
 
 // ============================================================
 // HiltWorker implementations for each collector
@@ -353,16 +338,6 @@ class ContextSnapshotWorker @AssistedInject constructor(
     }
 }
 
-// ============================================================
-// Inference engine workers (§35 Outcome, §38 Habit)
-// ============================================================
-
-
-
-// ============================================================
-// Collector workers (§7 Permission, §9.7 Communication, §9.8 Focus)
-// ============================================================
-
 @HiltWorker
 class PermissionCheckWorker @AssistedInject constructor(
     @Assisted appContext: Context,
@@ -379,8 +354,3 @@ class PermissionCheckWorker @AssistedInject constructor(
         }
     }
 }
-
-@HiltWorker
-
-
-

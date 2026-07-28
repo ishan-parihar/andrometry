@@ -10,14 +10,12 @@ import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import javax.inject.Inject
 
 /**
  * Calendar collector using ContentObserver for real-time meeting detection.
@@ -25,13 +23,16 @@ import javax.inject.Inject
  *
  * Tier 0 (observer) + Tier 1 (periodic reconciliation).
  * Produces: calendar_context events
+ *
+ * Note: Cannot use @AndroidEntryPoint because ContentObserver is not a valid
+ * Hilt entry point (must be Activity/Fragment/Service/BroadcastReceiver).
+ * Dependencies are injected via the start() method instead.
  */
-@AndroidEntryPoint
-class CalendarCollector : ContentObserver(Handler(Looper.getMainLooper())) {
-
-    @Inject lateinit var sequenceGenerator: SequenceGenerator
-    @Inject lateinit var database: AndrometryDatabase
-    @Inject lateinit var sensitiveModeManager: SensitiveModeManager
+class CalendarCollector(
+    private val sequenceGenerator: SequenceGenerator,
+    private val database: AndrometryDatabase,
+    private val sensitiveModeManager: SensitiveModeManager
+) : ContentObserver(Handler(Looper.getMainLooper())) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var context: Context? = null
