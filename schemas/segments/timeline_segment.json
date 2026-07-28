@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:timeline-segment:v1",
+  "title": "Andrometry Timeline Segment",
+  "description": "A semantic timeline segment with bitemporal support",
+  "type": "object",
+  "required": ["segment_id", "device_id", "segment_type", "layer", "start_time", "end_time", "label", "confidence", "version", "valid_from", "ingested_at", "payload"],
+  "properties": {
+    "segment_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Globally unique segment identifier"
+    },
+    "device_id": {
+      "type": "string",
+      "description": "Device identifier"
+    },
+    "segment_type": {
+      "type": "string",
+      "enum": [
+        "activity_segment",
+        "focus_segment",
+        "place_visit",
+        "app_usage_segment",
+        "meeting_segment",
+        "communication_segment",
+        "sleep_segment",
+        "distraction_segment",
+        "break_segment",
+        "exercise_segment",
+        "commute_segment"
+      ],
+      "description": "Type of segment"
+    },
+    "layer": {
+      "type": "string",
+      "enum": ["activity", "place", "focus", "communication", "health", "calendar", "device"],
+      "description": "Timeline layer this segment belongs to"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Segment start time"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Segment end time"
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable label (e.g., deep_work, office, sleep)"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Classification confidence"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Segment version for revision tracking"
+    },
+    "valid_from": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Bitemporal: when this version became believed"
+    },
+    "valid_to": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Bitemporal: when this version was superseded"
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this segment was ingested into the system"
+    },
+    "revised_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When this segment was last revised"
+    },
+    "revision_reason": {
+      "type": ["string", "null"],
+      "enum": [null, "calendar_sync", "sleep_data_arrived", "location_correction", "user_correction", "confidence_improved", "data_backfill"],
+      "description": "Why this segment was revised"
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Evidence supporting this classification"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Segment-type-specific payload"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:intervention-outcome:v1",
+  "title": "Intervention Outcome",
+  "description": "Tracks whether an intervention led to behavior change",
+  "type": "object",
+  "required": ["outcome_id", "intervention_id", "outcome_type", "timestamp"],
+  "properties": {
+    "outcome_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "intervention_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "outcome_type": {
+      "type": "string",
+      "enum": [
+        "accepted", "dismissed", "ignored", "completed",
+        "behavior_change", "metric_improved", "no_effect",
+        "negative_effect", "self_reported_helpful"
+      ]
+    },
+    "effectiveness_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "self_report": {
+      "type": "object",
+      "properties": {
+        "helpful": { "type": "boolean" },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

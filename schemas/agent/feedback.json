@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:user-feedback:v1",
+  "title": "User Feedback",
+  "description": "User feedback on interventions, observations, or system behavior",
+  "type": "object",
+  "required": ["feedback_id", "target_type", "target_id", "feedback_type", "timestamp"],
+  "properties": {
+    "feedback_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": ["intervention", "observation", "context", "segment", "habit", "goal"]
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": ["helpful", "not_helpful", "annoying", "too_late", "too_early", "correct", "incorrect", "accepted", "dismissed"]
+    },
+    "rating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

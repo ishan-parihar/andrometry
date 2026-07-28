@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:agent-observation:v1",
+  "title": "Agent Observation",
+  "description": "An observation written by an AI agent into the system",
+  "type": "object",
+  "required": ["observation_id", "agent_id", "observation_type", "severity", "message", "timestamp"],
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "observation_type": {
+      "type": "string",
+      "enum": ["risk", "pattern", "alignment", "anomaly", "suggestion", "reflection", "milestone"]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "evidence": {
+      "type": "object"
+    },
+    "related_context_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

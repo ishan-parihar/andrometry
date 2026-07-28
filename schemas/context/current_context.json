@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:current-context:v1",
+  "title": "Andrometry Current Context",
+  "description": "The primary object agents poll for current state",
+  "type": "object",
+  "required": ["timestamp", "timezone", "device_id", "schema_version", "context"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "device_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "context": {
+      "type": "object",
+      "required": ["primary_activity", "activity_confidence", "place", "place_confidence", "screen_state", "data_quality"],
+      "properties": {
+        "primary_activity": {
+          "type": "string",
+          "enum": [
+            "deep_work", "shallow_work", "meeting", "communication",
+            "learning", "admin", "planning", "break", "leisure",
+            "social", "distraction", "exercise", "commute", "sleep", "unknown"
+          ]
+        },
+        "activity_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "place": {
+          "type": "string",
+          "enum": ["home", "office", "gym", "cafe", "library", "commute", "unknown"]
+        },
+        "place_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "movement": {
+          "type": "string",
+          "enum": ["still", "walking", "running", "vehicle", "unknown"]
+        },
+        "foreground_app_category": {
+          "type": "string"
+        },
+        "screen_state": {
+          "type": "string",
+          "enum": ["on", "off"]
+        },
+        "minutes_since_unlock": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "focus_active": {
+          "type": "boolean"
+        },
+        "focus_minutes_elapsed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "focus_source": {
+          "type": "string",
+          "enum": ["manual", "calendar", "inferred", "agent"]
+        },
+        "interruption_rate": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"]
+        },
+        "notifications_last_15m": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "distraction_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fatigue_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "alignment_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "readiness_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "calendar": {
+          "type": "object",
+          "properties": {
+            "current_event": { "type": "string" },
+            "next_event_minutes": { "type": "integer" },
+            "busy_until": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "steps_last_hour": { "type": "integer" },
+            "activity": { "type": "string" },
+            "heart_rate_avg": { "type": "integer" }
+          }
+        },
+        "sleep": {
+          "type": "object",
+          "properties": {
+            "last_sleep_minutes": { "type": "integer" },
+            "sleep_debt_estimate_minutes": { "type": "integer" }
+          }
+        },
+        "battery": {
+          "type": "object",
+          "properties": {
+            "level": { "type": "number", "minimum": 0, "maximum": 1 },
+            "charging": { "type": "boolean" }
+          }
+        },
+        "data_quality": {
+          "type": "object",
+          "required": ["completeness", "staleness_seconds"],
+          "properties": {
+            "completeness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "staleness_seconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "usage_stats_available": { "type": "boolean" },
+            "notification_listener_available": { "type": "boolean" },
+            "calendar_available": { "type": "boolean" },
+            "location_fresh": { "type": "boolean" },
+            "health_connect_available": { "type": "boolean" },
+            "last_sync_minutes_ago": { "type": "integer" },
+            "missing_signals": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "missing_collectors": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "degraded_collectors": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "permission_issues": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "clock_drift_detected": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

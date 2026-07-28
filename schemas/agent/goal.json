@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:goal:v1",
+  "title": "Goal",
+  "description": "A user goal tracked by the alignment engine",
+  "type": "object",
+  "required": ["goal_id", "goal_type", "title", "status", "created_at"],
+  "properties": {
+    "goal_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "goal_type": {
+      "type": "string",
+      "enum": [
+        "deep_work_minutes_daily",
+        "distraction_limit",
+        "sleep_target",
+        "exercise_target",
+        "focus_session_count",
+        "custom"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "target": {
+      "type": "object",
+      "description": "Goal-specific target values"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused", "completed", "abandoned"],
+      "default": "active"
+    },
+    "progress": {
+      "type": "object",
+      "properties": {
+        "current_value": { "type": "number" },
+        "target_value": { "type": "number" },
+        "percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

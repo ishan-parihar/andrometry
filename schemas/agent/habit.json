@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:habit:v1",
+  "title": "Habit",
+  "description": "A tracked habit with schedule, evidence, and streak logic",
+  "type": "object",
+  "required": ["habit_id", "habit_type", "target", "schedule", "evidence_sources", "status"],
+  "properties": {
+    "habit_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "habit_type": {
+      "type": "string",
+      "enum": [
+        "morning_routine",
+        "deep_work_block",
+        "exercise",
+        "reading",
+        "meditation",
+        "early_sleep",
+        "no_social_media_morning",
+        "custom"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "target": {
+      "type": "object",
+      "required": ["metric", "minimum"],
+      "properties": {
+        "metric": { "type": "string" },
+        "minimum": { "type": "number" },
+        "maximum": { "type": "number" },
+        "unit": { "type": "string" }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "required": ["days", "window"],
+      "properties": {
+        "days": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+          }
+        },
+        "window": {
+          "type": "string",
+          "description": "Time window, e.g., 08:00-12:00"
+        }
+      }
+    },
+    "evidence_sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["focus_segment", "activity_segment", "app_usage_segment", "health_summary", "sleep_summary", "manual"]
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused", "completed"],
+      "default": "active"
+    },
+    "streak_days": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "habit_strength": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "exception_rules": {
+      "type": "object",
+      "description": "Travel mode, recovery rules, etc."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

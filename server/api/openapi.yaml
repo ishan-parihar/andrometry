@@ -1,0 +1,718 @@
+openapi: "3.1.0"
+info:
+  title: Andrometry Relay API
+  description: |
+    Thin relay server API for the Andrometry personal context engine.
+    Exposes secure endpoints for AI agents to query current context, timeline,
+    summaries, and to write observations, interventions, and feedback.
+  version: "0.1.0"
+  contact:
+    name: Andrometry
+
+servers:
+  - url: http://localhost:8420
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Device tokens: device:ingest, device:read_config, device:read_interventions, device:write_feedback
+        Agent tokens: agent:context:read, agent:briefing:read, agent:timeline:read, agent:events:read, agent:summaries:read, agent:observations:write, agent:interventions:write, agent:feedback:read, agent:goals:read, agent:goals:write, agent:habits:read, agent:habits:write, agent:outcomes:write
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    BatchRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+        batch_id:
+          type: string
+          format: uuid
+        client_version:
+          type: string
+        schema_version:
+          type: integer
+        sequence_start:
+          type: integer
+        sequence_end:
+          type: integer
+        events:
+          type: array
+          items:
+            type: object
+        segments:
+          type: array
+          items:
+            type: object
+        summaries:
+          type: array
+          items:
+            type: object
+        context:
+          type: object
+        device_state:
+          type: object
+      required: [device_id, batch_id, events]
+
+    BatchResponse:
+      type: object
+      properties:
+        accepted_events:
+          type: integer
+        rejected_events:
+          type: integer
+        accepted_segments:
+          type: integer
+        accepted_summaries:
+          type: integer
+        missing_sequences:
+          type: array
+          items:
+            type: integer
+        pending_interventions:
+          type: integer
+        server_time:
+          type: string
+          format: date-time
+
+    CurrentContext:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+        device_id:
+          type: string
+        etag:
+          type: string
+        context:
+          type: object
+
+    Briefing:
+      type: object
+      properties:
+        briefing_id:
+          type: string
+          format: uuid
+        generated_at:
+          type: string
+          format: date-time
+        state:
+          type: object
+          properties:
+            primary_activity:
+              type: string
+            place:
+              type: string
+            focus_active:
+              type: boolean
+            distraction_probability:
+              type: number
+            fatigue_probability:
+              type: number
+            alignment_probability:
+              type: number
+        delta_since_last:
+          type: object
+        risks:
+          type: array
+          items:
+            type: object
+        opportunities:
+          type: array
+          items:
+            type: object
+        suggested_queries:
+          type: array
+          items:
+            type: string
+
+    TimelineResponse:
+      type: object
+      properties:
+        timeline:
+          type: array
+          items:
+            type: object
+            properties:
+              segment_id:
+                type: string
+              segment_type:
+                type: string
+              layer:
+                type: string
+              start:
+                type: string
+              end:
+                type: string
+              label:
+                type: string
+              confidence:
+                type: number
+              version:
+                type: integer
+              payload:
+                type: object
+
+    ObservationRequest:
+      type: object
+      properties:
+        observation_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+        observation_type:
+          type: string
+          enum: [risk, pattern, alignment, anomaly, suggestion, reflection, milestone]
+        severity:
+          type: string
+          enum: [info, low, medium, high, critical]
+        message:
+          type: string
+        evidence:
+          type: object
+        related_context_timestamp:
+          type: string
+          format: date-time
+        timestamp:
+          type: string
+          format: date-time
+      required: [agent_id, observation_type, severity, message]
+
+    InterventionRequest:
+      type: object
+      properties:
+        intervention_id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+        intervention_type:
+          type: string
+          enum: [nudge, suggestion, warning, reflection_prompt, goal_reminder, habit_check, break_suggestion, focus_extend, energy_check]
+        title:
+          type: string
+        message:
+          type: string
+        suggested_action:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high]
+        evidence:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+      required: [agent_id, intervention_type, title, message, severity]
+
+    InterventionResponse:
+      type: object
+      properties:
+        intervention_id:
+          type: string
+        status:
+          type: string
+          enum: [proposed, approved_by_policy, suppressed]
+        rejected_reason:
+          type: string
+
+    FeedbackRequest:
+      type: object
+      properties:
+        feedback_id:
+          type: string
+          format: uuid
+        target_type:
+          type: string
+          enum: [intervention, observation, context, segment, habit, goal]
+        target_id:
+          type: string
+        feedback_type:
+          type: string
+          enum: [helpful, not_helpful, annoying, too_late, too_early, correct, incorrect, accepted, dismissed]
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        note:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [target_type, target_id, feedback_type]
+
+    GoalRequest:
+      type: object
+      properties:
+        goal_id:
+          type: string
+          format: uuid
+        goal_type:
+          type: string
+          enum: [deep_work_minutes_daily, distraction_limit, sleep_target, exercise_target, focus_session_count, custom]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, abandoned]
+        target:
+          type: object
+      required: [goal_type, title]
+
+    HabitRequest:
+      type: object
+      properties:
+        habit_id:
+          type: string
+          format: uuid
+        habit_type:
+          type: string
+          enum: [morning_routine, deep_work_block, exercise, reading, meditation, early_sleep, no_social_media_morning, custom]
+        title:
+          type: string
+        target:
+          type: object
+          properties:
+            metric:
+              type: string
+            minimum:
+              type: number
+            unit:
+              type: string
+        schedule:
+          type: object
+          properties:
+            days:
+              type: array
+              items:
+                type: string
+            window:
+              type: string
+        evidence_sources:
+          type: array
+          items:
+            type: string
+      required: [habit_type, title, target, schedule, evidence_sources]
+
+    OutcomeRequest:
+      type: object
+      properties:
+        outcome_id:
+          type: string
+          format: uuid
+        intervention_id:
+          type: string
+          format: uuid
+        outcome_type:
+          type: string
+          enum: [accepted, dismissed, ignored, completed, behavior_change, metric_improved, no_effect, negative_effect, self_reported_helpful]
+        effectiveness_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        evidence:
+          type: object
+        self_report:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+      required: [intervention_id, outcome_type]
+
+paths:
+  /v1/health:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  server:
+                    type: string
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+
+  /v1/batch:
+    post:
+      summary: Ingest event batch from device
+      tags: [Device]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchRequest"
+      responses:
+        "200":
+          description: Batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchResponse"
+
+  /v1/context/current:
+    get:
+      summary: Get current context
+      tags: [Context]
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+          description: ETag for conditional request
+      responses:
+        "200":
+          description: Current context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentContext"
+        "304":
+          description: Not modified (use cached ETag)
+
+  /v1/briefing/current:
+    get:
+      summary: Get current agent briefing
+      tags: [Briefing]
+      parameters:
+        - name: horizon
+          in: query
+          schema:
+            type: string
+          description: Time horizon (e.g., 2h)
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current briefing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Briefing"
+
+  /v1/timeline:
+    get:
+      summary: Get timeline segments
+      tags: [Timeline]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: segment_type
+          in: query
+          schema:
+            type: string
+          description: Filter by segment type
+        - name: label
+          in: query
+          schema:
+            type: string
+        - name: min_confidence
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+      responses:
+        "200":
+          description: Timeline segments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimelineResponse"
+
+  /v1/events:
+    get:
+      summary: Get events (drill-down)
+      tags: [Events]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/summary/daily:
+    get:
+      summary: Get daily summary
+      tags: [Summaries]
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          description: Date in YYYY-MM-DD format
+      responses:
+        "200":
+          description: Daily summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date:
+                    type: string
+                  timezone:
+                    type: string
+                  version:
+                    type: integer
+                  summary:
+                    type: object
+
+  /v1/summary/weekly:
+    get:
+      summary: Get weekly summary
+      tags: [Summaries]
+      parameters:
+        - name: week
+          in: query
+          schema:
+            type: string
+          description: Week in YYYY-WXX format
+      responses:
+        "200":
+          description: Weekly summary
+
+  /v1/agent/observations:
+    post:
+      summary: Write an agent observation
+      tags: [Agent Loop]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObservationRequest"
+      responses:
+        "201":
+          description: Observation created
+    get:
+      summary: Get agent observations
+      tags: [Agent Loop]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Observations list
+
+  /v1/agent/interventions:
+    post:
+      summary: Propose an intervention
+      tags: [Agent Loop]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterventionRequest"
+      responses:
+        "201":
+          description: Intervention created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterventionResponse"
+
+  /v1/agent/interventions/{id}:
+    patch:
+      summary: Update intervention status
+      tags: [Agent Loop]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [delivered, accepted, dismissed, ignored, completed, failed, expired]
+      responses:
+        "200":
+          description: Status updated
+
+  /v1/feedback:
+    post:
+      summary: Submit user feedback
+      tags: [Agent Loop]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackRequest"
+      responses:
+        "201":
+          description: Feedback recorded
+
+  /v1/goals:
+    get:
+      summary: Get user goals
+      tags: [Goals & Habits]
+      responses:
+        "200":
+          description: Goals list
+    post:
+      summary: Create a goal
+      tags: [Goals & Habits]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalRequest"
+      responses:
+        "201":
+          description: Goal created
+
+  /v1/habits:
+    get:
+      summary: Get user habits
+      tags: [Goals & Habits]
+      responses:
+        "200":
+          description: Habits list
+    post:
+      summary: Create a habit
+      tags: [Goals & Habits]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HabitRequest"
+      responses:
+        "201":
+          description: Habit created
+
+  /v1/outcomes:
+    get:
+      summary: Get intervention outcomes
+      tags: [Agent Loop]
+      parameters:
+        - name: intervention_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Outcomes list
+    post:
+      summary: Record an intervention outcome
+      tags: [Agent Loop]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutcomeRequest"
+      responses:
+        "201":
+          description: Outcome recorded
+
+  /v1/device/interventions:
+    get:
+      summary: Get pending interventions for device delivery
+      tags: [Device]
+      responses:
+        "200":
+          description: Pending interventions
+
+  /v1/audit:
+    get:
+      summary: Get audit log
+      tags: [System]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Audit log entries

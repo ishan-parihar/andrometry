@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:event-envelope:v1",
+  "title": "Andrometry Event Envelope",
+  "description": "Common envelope for all events in the Andrometry system",
+  "type": "object",
+  "required": ["event_id", "device_id", "schema_version", "event_version", "client_version", "timestamp", "timezone", "utc_offset_seconds", "event_type", "collector", "source", "sequence", "payload"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Globally unique event identifier"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Device identifier"
+    },
+    "user_id": {
+      "type": "string",
+      "default": "primary",
+      "description": "User identifier (default: primary for single-user)"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema compatibility version"
+    },
+    "event_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Event type version for evolution tracking"
+    },
+    "client_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Client app version"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp of the event"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (e.g., Asia/Kolkata)"
+    },
+    "utc_offset_seconds": {
+      "type": "integer",
+      "description": "UTC offset in seconds"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "boot_completed",
+        "screen_state_changed",
+        "device_unlocked",
+        "battery_state_changed",
+        "charging_state_changed",
+        "timezone_changed",
+        "connectivity_changed",
+        "permission_state_changed",
+        "app_health",
+        "sync_heartbeat",
+        "app_usage_summary",
+        "app_category_summary",
+        "app_switch_burst",
+        "app_classification_updated",
+        "notification_event",
+        "notification_summary",
+        "notification_interruption_summary",
+        "focus_session",
+        "focus_state_changed",
+        "focus_interruption",
+        "calendar_context",
+        "calendar_event_changed",
+        "location_context",
+        "place_visit_started",
+        "place_visit_ended",
+        "geofence_transition",
+        "movement_context",
+        "health_summary",
+        "sleep_summary",
+        "activity_recognition",
+        "exercise_session",
+        "communication_summary",
+        "communication_notification_summary",
+        "context_snapshot",
+        "activity_segment",
+        "daily_summary",
+        "weekly_summary",
+        "agent_observation",
+        "agent_intervention",
+        "user_feedback",
+        "intervention_outcome",
+        "goal_updated",
+        "habit_updated",
+        "baseline_updated",
+        "user_correction"
+      ],
+      "description": "Type of event"
+    },
+    "collector": {
+      "type": "string",
+      "description": "Collector that produced this event"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["broadcast", "workmanager", "foreground_service", "content_observer", "geofence", "health_connect", "manual", "inferred", "server", "user_input"],
+      "description": "Source mechanism that generated this event"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonic sequence number per device"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-type-specific payload"
+    }
+  },
+  "additionalProperties": false
+}
