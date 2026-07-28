@@ -225,6 +225,8 @@ private suspend fun generateJsonExport(database: AndrometryDatabase): String {
     val observations = database.observationDao().getRecent(500)
     val interventions = database.interventionDao().getAll(500)
     val feedback = database.feedbackDao().getAll(500)
+    val fiveMinSummaries = database.fiveMinuteSummaryDao().getInRange("1970-01-01", "2099-12-31")
+    val hourlySummaries = database.hourlySummaryDao().getInRange("1970-01-01", "2099-12-31")
     val dailySummaries = database.dailySummaryDao().getRecent(90)
 
     val gson = com.google.gson.Gson()
@@ -240,6 +242,8 @@ private suspend fun generateJsonExport(database: AndrometryDatabase): String {
         "interventions": {"count": ${interventions.size}, "data": ${gson.toJson(interventions.map { mapOf("id" to it.interventionId, "type" to it.interventionType, "status" to it.status, "timestamp" to it.timestamp) })}},
         "observations": {"count": ${observations.size}, "data": ${gson.toJson(observations.map { mapOf("id" to it.observationId, "type" to it.observationType, "severity" to it.severity, "timestamp" to it.timestamp) })}},
         "feedback": {"count": ${feedback.size}, "data": ${gson.toJson(feedback.map { mapOf("id" to it.feedbackId, "target" to it.targetType, "type" to it.feedbackType, "timestamp" to it.timestamp) })}},
+        "five_minute_summaries": {"count": ${fiveMinSummaries.size}, "data": ${gson.toJson(fiveMinSummaries.map { mapOf("start" to it.startTime, "end" to it.endTime) })}},
+        "hourly_summaries": {"count": ${hourlySummaries.size}, "data": ${gson.toJson(hourlySummaries.map { mapOf("start" to it.startTime, "end" to it.endTime) })}},
         "daily_summaries": {"count": ${dailySummaries.size}, "data": ${gson.toJson(dailySummaries.map { mapOf("date" to it.date, "timezone" to it.timezone) })}}
     }
     """.trimIndent()
