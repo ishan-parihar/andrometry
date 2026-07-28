@@ -170,5 +170,5 @@ func bootstrapDeviceToken(database *db.DB, rawToken string) {
 	fmt.Println("\nAdd to your environment:")
 	fmt.Printf("  ANDROMETRY_DEVICE_TOKEN=%s\n", rawToken)
 	fmt.Printf("  ANDROMETRY_AGENT_TOKEN=agent-%s\n", rawToken)
-	fmt.Println("====================================\n")
+	fmt.Println("====================================")
 }
