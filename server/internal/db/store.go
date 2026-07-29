@@ -1056,6 +1056,15 @@ func (db *DB) RevokeAllTokensForUser(userID string) error {
 	return err
 }
 
+// RevokeTokensByType revokes all tokens of a specific type for a user (used during rotation).
+func (db *DB) RevokeTokensByType(userID, tokenType string) error {
+	_, err := db.Exec(`
+		UPDATE auth_tokens SET revoked_at = datetime('now')
+		WHERE user_id = ? AND token_type = ? AND revoked_at IS NULL
+	`, userID, tokenType)
+	return err
+}
+
 // GetLastInterventionTime returns the timestamp of the most recent intervention for a user.
 // Uses the `timestamp` column (RFC3339 from the device) rather than `created_at` (SQLite datetime format).
 func (db *DB) GetLastInterventionTime(userID string) (string, error) {

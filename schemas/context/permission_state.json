@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/context/permission_state.json",
+  "title": "Andrometry Permission State",
+  "description": "Tracks the current state of all required Android permissions. Per §7.2 of the architecture. Agents need this because missing permissions explain missing data.",
+  "type": "object",
+  "required": ["event_type", "timestamp", "payload"],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "const": "permission_state_changed"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Current permission state flags",
+      "required": [
+        "usage_stats",
+        "notification_listener",
+        "calendar",
+        "location",
+        "health_connect",
+        "battery_optimization_exempt"
+      ],
+      "properties": {
+        "usage_stats": {
+          "type": "boolean",
+          "description": "PACKAGE_USAGE_STATS granted"
+        },
+        "notification_listener": {
+          "type": "boolean",
+          "description": "NotificationListenerService enabled"
+        },
+        "notification_listener_restricted": {
+          "type": "boolean",
+          "description": "Whether notification access is restricted by the OS",
+          "default": false
+        },
+        "calendar": {
+          "type": "boolean",
+          "description": "READ_CALENDAR granted"
+        },
+        "location": {
+          "type": "boolean",
+          "description": "ACCESS_FINE_LOCATION granted"
+        },
+        "background_location": {
+          "type": "boolean",
+          "description": "ACCESS_BACKGROUND_LOCATION granted",
+          "default": false
+        },
+        "health_connect": {
+          "type": "boolean",
+          "description": "Health Connect available"
+        },
+        "health_connect_steps": {
+          "type": "boolean",
+          "description": "Steps permission granted in Health Connect"
+        },
+        "health_connect_sleep": {
+          "type": "boolean",
+          "description": "Sleep permission granted in Health Connect"
+        },
+        "health_connect_heart_rate": {
+          "type": "boolean",
+          "description": "Heart rate permission granted in Health Connect"
+        },
+        "battery_optimization_exempt": {
+          "type": "boolean",
+          "description": "Battery optimization exemption granted"
+        },
+        "post_notifications": {
+          "type": "boolean",
+          "description": "POST_NOTIFICATIONS permission granted"
+        },
+        "receive_boot_completed": {
+          "type": "boolean",
+          "description": "RECEIVE_BOOT_COMPLETED permission granted"
+        }
+      }
+    }
+  }
+}

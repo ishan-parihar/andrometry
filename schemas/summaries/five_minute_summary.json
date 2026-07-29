@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/summaries/five_minute_summary.json",
+  "title": "Andrometry Five-Minute Summary",
+  "description": "Five-minute resolution summary of app usage, notifications, and activity. Per §9.1 of the architecture.",
+  "type": "object",
+  "required": ["start_time", "end_time", "summary"],
+  "properties": {
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Interval start (ISO 8601)"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Interval end (ISO 8601)"
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregated five-minute summary payload",
+      "properties": {
+        "by_category": {
+          "type": "object",
+          "description": "Seconds spent per app category",
+          "properties": {
+            "productivity": { "type": "number", "minimum": 0 },
+            "communication": { "type": "number", "minimum": 0 },
+            "social": { "type": "number", "minimum": 0 },
+            "browser": { "type": "number", "minimum": 0 },
+            "entertainment": { "type": "number", "minimum": 0 },
+            "system": { "type": "number", "minimum": 0 },
+            "unknown": { "type": "number", "minimum": 0 }
+          }
+        },
+        "top_apps": {
+          "type": "array",
+          "description": "Top apps by usage time",
+          "items": {
+            "type": "object",
+            "properties": {
+              "package": { "type": "string" },
+              "category": { "type": "string" },
+              "seconds": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "app_switch_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of app switches in this interval"
+        },
+        "notification_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of notifications received"
+        },
+        "screen_on_minutes": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Screen-on minutes in this 5-minute window"
+        },
+        "primary_activity": {
+          "type": "string",
+          "description": "Inferred primary activity during this interval"
+        }
+      }
+    }
+  }
+}

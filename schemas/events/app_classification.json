@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/events/app_classification.json",
+  "title": "Andrometry App Classification",
+  "description": "App-to-category classification mapping. Per §9.1 App Classification System of the architecture. Classification sources: package allowlist, Android app category, user overrides, remote category pack, heuristic label matching.",
+  "type": "object",
+  "required": ["package", "category", "source"],
+  "properties": {
+    "package": {
+      "type": "string",
+      "description": "Android package name",
+      "examples": ["com.notion.id", "com.slack", "com.instagram.android"]
+    },
+    "category": {
+      "type": "string",
+      "description": "App category classification",
+      "enum": [
+        "productivity",
+        "communication",
+        "calendar",
+        "email",
+        "browser",
+        "social",
+        "entertainment",
+        "news",
+        "finance",
+        "health",
+        "travel",
+        "shopping",
+        "maps",
+        "system",
+        "unknown"
+      ]
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Optional subcategory for finer classification",
+      "examples": ["notes", "messaging", "video", "photo"]
+    },
+    "alignment": {
+      "type": "string",
+      "description": "How this app aligns with the user's goals",
+      "enum": ["aligned", "neutral", "misaligned"],
+      "default": "neutral"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source of the classification",
+      "enum": [
+        "android_category",
+        "package_allowlist",
+        "user_override",
+        "remote_category_pack",
+        "heuristic_label",
+        "ai_classification"
+      ]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this classification was last updated"
+    }
+  }
+}

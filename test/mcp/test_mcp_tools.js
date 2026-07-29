@@ -998,9 +998,11 @@ const architectureEndpoints = [
 ];
 const toolEndpoints = mcpTools.map((t) => t.endpoint);
 for (const endpoint of architectureEndpoints) {
-  const paramEndpoint = endpoint.replace("/{id}", "");
+  // Convert {id} placeholders to a regex pattern for matching
+  const pattern = endpoint.replace(/\{[^}]+\}/g, '[^/]+');
+  const regex = new RegExp('^' + pattern + '$');
   assert(
-    toolEndpoints.includes(endpoint) || toolEndpoints.some(e => e.startsWith(paramEndpoint)),
+    toolEndpoints.includes(endpoint) || toolEndpoints.some(e => regex.test(e)),
     `Missing endpoint: ${endpoint}`
   );
 }

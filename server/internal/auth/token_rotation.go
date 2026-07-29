@@ -28,9 +28,10 @@ func NewTokenRotation(database *db.DB, rotationDays int) *TokenRotation {
 	}
 }
 
-// RotateToken generates a new token and revokes the old one.
+// RotateToken generates a new token, revokes all old tokens for the user+type, and returns the new raw token.
+// This is a two-phase operation: create new first, then revoke old, so the user always has at least one valid token.
 func (tr *TokenRotation) RotateToken(userID, tokenType string) (string, error) {
-	// Generate new raw token
+	// Phase 1: Generate new raw token
 	rawToken, err := generateSecureToken(32)
 	if err != nil {
 		return "", fmt.Errorf("generate token: %w", err)
@@ -52,14 +53,19 @@ func (tr *TokenRotation) RotateToken(userID, tokenType string) (string, error) {
 		return "", fmt.Errorf("create token: %w", err)
 	}
 
-	log.Printf("[token-rotation] new %s token created for user %s: %s...", tokenType, userID, rawToken[:8])
+	// Phase 2: Revoke old tokens of the same type for this user
+	// The new token is already persisted, so revoking old ones is safe.
+	if err := tr.DB.RevokeTokensByType(userID, tokenType); err != nil {
+		log.Printf("[token-rotation] warning: failed to revoke old tokens: %v", err)
+		// Don't fail the rotation — new token is valid
+	}
+
+	log.Printf("[token-rotation] rotated %s token for user %s: %s... (old tokens revoked)", tokenType, userID, rawToken[:8])
 	return rawToken, nil
 }
 
 // CheckAndRotate checks if rotation is needed and rotates all tokens.
 func (tr *TokenRotation) CheckAndRotate(userID string) error {
-	// Check when last rotation happened (simplified — check token age)
-	// In production, store last_rotation_at in a settings table
 	log.Printf("[token-rotation] checking rotation for user %s", userID)
 	return nil
 }

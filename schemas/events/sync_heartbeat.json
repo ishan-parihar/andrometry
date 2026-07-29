@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/events/sync_heartbeat.json",
+  "title": "Andrometry Sync Heartbeat",
+  "description": "Minimal heartbeat event sent when context/location has not changed. Per §14.4 of the architecture. Reduces bandwidth by not resending unchanged data.",
+  "type": "object",
+  "required": ["event_type", "timestamp", "payload"],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "const": "sync_heartbeat"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Device state for the heartbeat",
+      "properties": {
+        "battery": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Battery level 0-1"
+        },
+        "charging": {
+          "type": "boolean",
+          "description": "Whether the device is charging"
+        },
+        "storage_free_mb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Free storage in MB"
+        },
+        "queue_size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of pending events in sync queue"
+        },
+        "last_context_change_minutes_ago": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Minutes since last context update"
+        }
+      }
+    }
+  }
+}

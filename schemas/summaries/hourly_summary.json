@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/summaries/hourly_summary.json",
+  "title": "Andrometry Hourly Summary",
+  "description": "Hourly resolution summary aggregating five-minute summaries. Used for trend analysis and longer-term patterns.",
+  "type": "object",
+  "required": ["start_time", "end_time", "summary"],
+  "properties": {
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Hour start (ISO 8601)"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Hour end (ISO 8601)"
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregated hourly summary payload",
+      "properties": {
+        "by_category": {
+          "type": "object",
+          "description": "Minutes spent per app category",
+          "properties": {
+            "productivity": { "type": "number", "minimum": 0 },
+            "communication": { "type": "number", "minimum": 0 },
+            "social": { "type": "number", "minimum": 0 },
+            "browser": { "type": "number", "minimum": 0 },
+            "entertainment": { "type": "number", "minimum": 0 },
+            "system": { "type": "number", "minimum": 0 }
+          }
+        },
+        "notification_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "focus_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Computed focus quality score for this hour"
+        },
+        "screen_on_minutes": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "interruption_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "primary_activity": {
+          "type": "string",
+          "description": "Most common primary activity during this hour"
+        },
+        "distraction_minutes": {
+          "type": "number",
+          "minimum": 0
+        },
+        "meeting_minutes": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

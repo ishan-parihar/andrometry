@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry://schemas/summaries/weekly_summary.json",
+  "title": "Andrometry Weekly Summary",
+  "description": "Rich weekly summary with trends, patterns, habit adherence, and alignment scoring. Per §17.7 of the architecture.",
+  "type": "object",
+  "required": ["week", "timezone", "summary"],
+  "properties": {
+    "week": {
+      "type": "string",
+      "description": "ISO week identifier (YYYY-WXX)",
+      "pattern": "^\\d{4}-W\\d{2}$",
+      "examples": ["2026-W31"]
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone for the user",
+      "examples": ["Asia/Kolkata"]
+    },
+    "version": {
+      "type": "integer",
+      "description": "Summary version, incremented on each update",
+      "minimum": 1,
+      "default": 1
+    },
+    "summary": {
+      "type": "object",
+      "description": "Weekly summary payload with trends and comparisons",
+      "properties": {
+        "period": {
+          "type": "object",
+          "description": "Date range covered",
+          "properties": {
+            "start_date": { "type": "string", "format": "date" },
+            "end_date": { "type": "string", "format": "date" }
+          }
+        },
+        "deep_work": {
+          "type": "object",
+          "description": "Deep work metrics for the week",
+          "properties": {
+            "total_minutes": { "type": "number", "minimum": 0 },
+            "daily_average_minutes": { "type": "number", "minimum": 0 },
+            "sessions_count": { "type": "integer", "minimum": 0 },
+            "average_session_minutes": { "type": "number", "minimum": 0 },
+            "trend": { "type": "string", "enum": ["increasing", "decreasing", "stable"] },
+            "vs_baseline": { "type": "number", "description": "Deviation from baseline (positive = above)" }
+          }
+        },
+        "distraction": {
+          "type": "object",
+          "description": "Distraction metrics for the week",
+          "properties": {
+            "total_minutes": { "type": "number", "minimum": 0 },
+            "daily_average_minutes": { "type": "number", "minimum": 0 },
+            "trend": { "type": "string", "enum": ["increasing", "decreasing", "stable"] }
+          }
+        },
+        "meetings": {
+          "type": "object",
+          "description": "Meeting metrics for the week",
+          "properties": {
+            "total_minutes": { "type": "number", "minimum": 0 },
+            "total_count": { "type": "integer", "minimum": 0 },
+            "fragmentation_score": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "sleep": {
+          "type": "object",
+          "description": "Sleep metrics for the week",
+          "properties": {
+            "average_minutes": { "type": "number", "minimum": 0 },
+            "regularity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "bedtime_consistency_minutes": { "type": "number" }
+          }
+        },
+        "health": {
+          "type": "object",
+          "description": "Health metrics for the week",
+          "properties": {
+            "total_steps": { "type": "integer", "minimum": 0 },
+            "daily_average_steps": { "type": "number", "minimum": 0 },
+            "exercise_sessions": { "type": "integer", "minimum": 0 },
+            "exercise_minutes": { "type": "number", "minimum": 0 }
+          }
+        },
+        "habits": {
+          "type": "object",
+          "description": "Habit adherence for the week",
+          "properties": {
+            "total_habits": { "type": "integer", "minimum": 0 },
+            "completion_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "best_streak": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "scores": {
+          "type": "object",
+          "description": "Weekly aggregate scores",
+          "properties": {
+            "alignment": { "type": "number", "minimum": 0, "maximum": 1 },
+            "productivity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "wellbeing": { "type": "number", "minimum": 0, "maximum": 1 },
+            "focus_control": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "work_patterns": {
+          "type": "object",
+          "properties": {
+            "average_focus_bout_minutes": { "type": "number", "minimum": 0 },
+            "context_switching_rate_per_hour": { "type": "number", "minimum": 0 },
+            "late_night_work_minutes": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

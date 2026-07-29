@@ -111,6 +111,10 @@ func main() {
 	mux.Handle("DELETE /v1/corrections/{id}", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.DeleteUserCorrection))))
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
+	// Token rotation and revocation (§28)
+	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRotation))))
+	mux.Handle("POST /v1/auth/revoke", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRevoke))))
+
 	// SSE stream for real-time context updates (§21)
 	mux.Handle("GET /v1/stream", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.StreamContext))))
 

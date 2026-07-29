@@ -777,6 +777,57 @@ paths:
         '200':
           description: All data wiped
 
+  /v1/auth/rotate:
+    post:
+      summary: Rotate authentication token (§28)
+      description: Generates a new token and revokes the old one. Store the new token securely.
+      tags: [Auth]
+      security:
+        - BearerAuth: [device:ingest]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_type:
+                  type: string
+                  enum: [device, agent]
+                  default: agent
+                  description: Type of token to rotate
+      responses:
+        '200':
+          description: New token issued, old token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  new_token: { type: string, description: New bearer token }
+                  token_type: { type: string }
+                  old_token: { type: string, example: revoked }
+                  message: { type: string }
+
+  /v1/auth/revoke:
+    post:
+      summary: Revoke all tokens (kill switch, §28)
+      description: Emergency revocation of all tokens for the authenticated user.
+      tags: [Auth]
+      security:
+        - BearerAuth: [device:ingest]
+      responses:
+        '200':
+          description: All tokens revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: all_tokens_revoked }
+                  user_id: { type: string }
+                  message: { type: string }
+
 components:
   securitySchemes:
     BearerAuth:
