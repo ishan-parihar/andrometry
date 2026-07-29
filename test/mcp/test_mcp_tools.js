@@ -132,32 +132,82 @@ const mockResponses = {
       ],
     },
   },
-  "/v1/agent/observations": {
+  "GET:/v1/agent/observations": {
+    status: 200,
+    data: {
+      observations: [
+        {
+          observation_id: "obs-1",
+          observation_type: "pattern",
+          severity: "info",
+          message: "User tends to focus better in mornings",
+        },
+      ],
+    },
+  },
+  "POST:/v1/agent/observations": {
     status: 201,
     data: {
       observation_id: "obs-1",
     },
   },
-  "/v1/agent/interventions": {
+  "GET:/v1/agent/interventions": {
+    status: 200,
+    data: {
+      interventions: [],
+    },
+  },
+  "POST:/v1/agent/interventions": {
     status: 201,
     data: {
       intervention_id: "int-1",
       status: "approved_by_policy",
     },
   },
-  "/v1/feedback": {
+  "PATCH:/v1/agent/interventions/int-test": {
+    status: 200,
+    data: {
+      intervention_id: "int-1",
+      status: "delivered",
+    },
+  },
+  "GET:/v1/feedback": {
+    status: 200,
+    data: {
+      feedback: [
+        {
+          feedback_id: "fb-1",
+          feedback_type: "helpful",
+          rating: 4,
+        },
+      ],
+    },
+  },
+  "POST:/v1/feedback": {
     status: 201,
     data: {
       feedback_id: "fb-1",
     },
   },
-  "/v1/outcomes": {
+  "GET:/v1/outcomes": {
+    status: 200,
+    data: {
+      outcomes: [
+        {
+          outcome_id: "out-1",
+          outcome_type: "accepted",
+          effectiveness_score: 0.7,
+        },
+      ],
+    },
+  },
+  "POST:/v1/outcomes": {
     status: 201,
     data: {
       outcome_id: "out-1",
     },
   },
-  "/v1/goals": {
+  "GET:/v1/goals": {
     status: 200,
     data: {
       goals: [
@@ -170,7 +220,16 @@ const mockResponses = {
       ],
     },
   },
-  "/v1/habits": {
+  "POST:/v1/goals": {
+    status: 201,
+    data: {
+      goal_id: "goal-new-1",
+      goal_type: "deep_work_minutes",
+      title: "Deep work 2 hours daily",
+      status: "active",
+    },
+  },
+  "GET:/v1/habits": {
     status: 200,
     data: {
       habits: [
@@ -184,7 +243,17 @@ const mockResponses = {
       ],
     },
   },
-  "/v1/baselines": {
+  "POST:/v1/habits": {
+    status: 201,
+    data: {
+      habit_id: "habit-new-1",
+      habit_type: "morning_routine",
+      title: "Wake before 7am",
+      streak_days: 0,
+      habit_strength: 0.0,
+    },
+  },
+  "GET:/v1/baselines": {
     status: 200,
     data: {
       baselines: [
@@ -196,10 +265,25 @@ const mockResponses = {
       ],
     },
   },
-  "/v1/corrections": {
+  "POST:/v1/baselines": {
+    status: 201,
+    data: {
+      baseline_id: "bl-new-1",
+      metric_name: "deep_work_minutes_daily",
+      value: 120,
+    },
+  },
+  "GET:/v1/corrections": {
     status: 200,
     data: {
       corrections: [],
+    },
+  },
+  "POST:/v1/corrections": {
+    status: 201,
+    data: {
+      status: "created",
+      correction_id: "corr-1",
     },
   },
   "/v1/health/detailed": {
@@ -213,10 +297,20 @@ const mockResponses = {
       },
     },
   },
-  "/v1/privacy/sensitive-mode": {
+  "GET:/v1/privacy/sensitive-mode": {
     status: 200,
     data: {
       active: false,
+      pause_sync: true,
+      redact_location: true,
+      redact_app_usage: true,
+      redact_calendar: true,
+    },
+  },
+  "POST:/v1/privacy/sensitive-mode": {
+    status: 200,
+    data: {
+      active: true,
       pause_sync: true,
       redact_location: true,
       redact_app_usage: true,
@@ -728,10 +822,11 @@ const uniqueNames = new Set(names);
 assert(uniqueNames.size === names.length, `Found duplicate tool names`);
 console.log(`  ✓ All ${names.length} tool names are unique\n`);
 
-// Test 4: Mock response validation
+// Test 4: Mock response validation (match by method+endpoint)
 console.log("[test] Test 4: Mock responses validate against tool schemas");
 for (const tool of mcpTools) {
-  const mock = mockResponses[tool.endpoint];
+  const mockKey = `${tool.method}:${tool.endpoint}`;
+  const mock = mockResponses[mockKey];
   if (mock && mock.status === 200) {
     try {
       tool.validates(mock.data);
@@ -740,6 +835,8 @@ for (const tool of mcpTools) {
       console.log(`  ✗ ${tool.name} mock validation failed: ${e.message}`);
       process.exit(1);
     }
+  } else {
+    console.log(`  - ${tool.name} (no matching mock, skipped)`);
   }
 }
 console.log();
