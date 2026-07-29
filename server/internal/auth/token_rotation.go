@@ -55,19 +55,17 @@ func (tr *TokenRotation) RotateToken(userID, tokenType string) (string, error) {
 
 	// Phase 2: Revoke old tokens of the same type for this user
 	// The new token is already persisted, so revoking old ones is safe.
-	if err := tr.DB.RevokeTokensByType(userID, tokenType); err != nil {
+	revoked, err := tr.DB.RevokeTokensByType(userID, tokenType)
+	if err != nil {
 		log.Printf("[token-rotation] warning: failed to revoke old tokens: %v", err)
 		// Don't fail the rotation — new token is valid
+	} else if revoked > 0 {
+		log.Printf("[token-rotation] rotated %s token for user %s: %s... (%d old tokens revoked)", tokenType, userID, rawToken[:8], revoked)
+	} else {
+		log.Printf("[token-rotation] rotated %s token for user %s: %s... (no old tokens to revoke)", tokenType, userID, rawToken[:8])
 	}
 
-	log.Printf("[token-rotation] rotated %s token for user %s: %s... (old tokens revoked)", tokenType, userID, rawToken[:8])
 	return rawToken, nil
-}
-
-// CheckAndRotate checks if rotation is needed and rotates all tokens.
-func (tr *TokenRotation) CheckAndRotate(userID string) error {
-	log.Printf("[token-rotation] checking rotation for user %s", userID)
-	return nil
 }
 
 // RevokeAllTokens revokes all tokens for a user (kill switch).
