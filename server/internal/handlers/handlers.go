@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/andrometry/server/internal/auth"
 	"github.com/andrometry/server/internal/audit"
 	"github.com/andrometry/server/internal/briefing"
 	"github.com/andrometry/server/internal/db"
@@ -19,15 +20,17 @@ import (
 
 // Handler holds dependencies for all HTTP handlers.
 type Handler struct {
-	DB     *db.DB
-	Policy governor.Policy
+	DB      *db.DB
+	Policy  governor.Policy
+	Rotator *auth.TokenRotation // Token rotation manager, initialized once in NewHandler
 }
 
 // NewHandler creates a new Handler with the given database and default policy.
 func NewHandler(database *db.DB) *Handler {
 	return &Handler{
-		DB:     database,
-		Policy: governor.DefaultPolicy(),
+		DB:      database,
+		Policy:  governor.DefaultPolicy(),
+		Rotator: auth.NewTokenRotation(database, 30),
 	}
 }
 

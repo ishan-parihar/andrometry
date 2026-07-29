@@ -112,6 +112,8 @@ func main() {
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
 	// Token rotation and revocation (§28)
+	// NOTE: These endpoints use device:ingest scope. Agent tokens cannot rotate themselves.
+	// Design: device rotates, agent reads. If agents need self-rotation, add separate routes.
 	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRotation))))
 	mux.Handle("POST /v1/auth/revoke", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRevoke))))
 

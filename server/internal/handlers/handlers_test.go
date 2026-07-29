@@ -8,15 +8,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	dbpkg "github.com/andrometry/server/internal/db"
+	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
 	"github.com/andrometry/server/internal/middleware"
 	"github.com/andrometry/server/internal/models"
 )
 
-func setupTestDB(t *testing.T) *dbpkg.DB {
+func setupTestDB(t *testing.T) *db.DB {
 	t.Helper()
-	database, err := dbpkg.Open(":memory:")
+	database, err := db.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *dbpkg.DB {
 	return database
 }
 
-func setupTestHandler(t *testing.T) (*Handler, *dbpkg.DB) {
+func setupTestHandler(t *testing.T) (*Handler, *db.DB) {
 	t.Helper()
 	database := setupTestDB(t)
 	h := NewHandler(database)
@@ -1214,7 +1214,7 @@ func TestPostTokenRotation(t *testing.T) {
 
 	// Create an initial token for the user
 	tokenID := "test-token-1"
-	hash := dbpkg.HashToken("old-token-123")
+	hash := db.HashToken("old-token-123")
 	_ = h.DB.CreateToken(&models.AuthToken{
 		TokenID:   tokenID,
 		UserID:    "primary",
@@ -1251,10 +1251,25 @@ func TestPostTokenRotation(t *testing.T) {
 
 	// Verify new token is valid
 	newTokenStr := resp["new_token"].(string)
-	newHash := dbpkg.HashToken(newTokenStr)
+	newHash := db.HashToken(newTokenStr)
 	newToken, _ := h.DB.ValidateToken(newHash)
 	if newToken == nil {
 		t.Error("new token should be valid after rotation")
+	}
+}
+
+func TestPostTokenRotation_emptyBody(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	body := []byte(`{}`)
+	req := httptest.NewRequest("POST", "/v1/auth/rotate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostTokenRotation(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
 	}
 }
 

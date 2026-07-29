@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/andrometry/server/internal/audit"
-	"github.com/andrometry/server/internal/auth"
 )
 
 // PostTokenRotation handles POST /v1/auth/rotate — rotates the caller's token and returns a new one.
@@ -34,8 +33,7 @@ func (h *Handler) PostTokenRotation(w http.ResponseWriter, r *http.Request) {
 
 	uid := userID(r)
 
-	tr := auth.NewTokenRotation(h.DB, 30)
-	newToken, err := tr.RotateToken(uid, req.TokenType)
+	newToken, err := h.Rotator.RotateToken(uid, req.TokenType)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to rotate token")
 		return
@@ -57,8 +55,7 @@ func (h *Handler) PostTokenRotation(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PostTokenRevoke(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
 
-	tr := auth.NewTokenRotation(h.DB, 30)
-	if err := tr.RevokeAllTokens(uid); err != nil {
+	if err := h.Rotator.RevokeAllTokens(uid); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to revoke tokens")
 		return
 	}
