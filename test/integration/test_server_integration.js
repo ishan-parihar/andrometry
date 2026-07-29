@@ -421,6 +421,7 @@ async function testAgentEndpoints() {
   await test('POST /v1/habits — create', async () => {
     const res = await httpRequest('POST', '/v1/habits', {
       title: 'Morning meditation',
+      habit_type: 'wellness',
       description: '10 minutes of mindfulness',
       frequency: 'daily',
       target_count: 1,
@@ -624,7 +625,7 @@ async function testErrorCases() {
   });
 
   await test('POST /v1/goals — title-only creates successfully', async () => {
-    const res = await httpRequest('POST', '/v1/goals', { title: 'Test goal' }, AGENT_TOKEN);
+    const res = await httpRequest('POST', '/v1/goals', { title: 'Test goal', goal_type: 'milestone' }, AGENT_TOKEN);
     assertStatus(res, 201, 'goal with title only');
   });
 

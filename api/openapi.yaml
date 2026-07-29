@@ -1,0 +1,791 @@
+openapi: 3.0.3
+info:
+  title: Andrometry Relay Server API
+  description: |
+    Thin relay server for the Andrometry personal digital observability system.
+    Handles batch ingestion from Android devices, exposes context/timeline/summaries
+    for AI agents, and supports goal/habit/intervention management.
+  version: 0.1.0
+  contact:
+    name: Andrometry
+
+servers:
+  - url: http://localhost:8420
+    description: Local development
+  - url: https://andrometry.example.com
+    description: Production
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/health:
+    get:
+      summary: Health check (no auth required)
+      tags: [Health]
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  server: { type: string }
+                  version: { type: string }
+                  timestamp: { type: string, format: date-time }
+
+  /v1/health/detailed:
+    get:
+      summary: Detailed health with DB stats (no auth required)
+      tags: [Health]
+      responses:
+        '200':
+          description: Server healthy with DB stats
+
+  /v1/batch:
+    post:
+      summary: Batch ingestion from device
+      tags: [Device]
+      security:
+        - BearerAuth: [device:ingest]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_id: { type: string }
+                batch_id: { type: string }
+                client_version: { type: string }
+                schema_version: { type: integer }
+                sequence_start: { type: integer, format: int64 }
+                sequence_end: { type: integer, format: int64 }
+                events: { type: array, items: { type: object } }
+                segments: { type: array, items: { type: object } }
+                summaries: { type: array, items: { type: object } }
+                context: { type: object }
+                device_state: { type: object }
+      responses:
+        '200':
+          description: Batch accepted
+
+  /v1/context/current:
+    get:
+      summary: Get current context snapshot
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:context:read]
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current context
+        '304':
+          description: Context unchanged (ETag match)
+        '404':
+          description: No context available
+
+  /v1/briefing/current:
+    get:
+      summary: Get current briefing
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:briefing:read]
+      responses:
+        '200':
+          description: Current briefing
+
+  /v1/timeline:
+    get:
+      summary: Get timeline segments
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:timeline:read]
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 200 }
+        - name: segment_type
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Timeline segments
+
+  /v1/events:
+    get:
+      summary: Get events (drill-down)
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:events:read]
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: event_type
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 200 }
+      responses:
+        '200':
+          description: Events list
+
+  /v1/summary/daily:
+    get:
+      summary: Get daily summary
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      parameters:
+        - name: date
+          in: query
+          schema: { type: string, format: date, example: 2026-07-29 }
+      responses:
+        '200':
+          description: Daily summary
+        '404':
+          description: No summary for this date
+
+  /v1/summary/weekly:
+    get:
+      summary: Get weekly summary
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      parameters:
+        - name: week
+          in: query
+          schema: { type: string, example: 2026-W31 }
+      responses:
+        '200':
+          description: Weekly summary
+        '404':
+          description: No summary for this week
+
+  /v1/summary/five_minute:
+    get:
+      summary: Get five-minute summaries
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Five-minute summaries
+
+  /v1/summary/hourly:
+    get:
+      summary: Get hourly summaries
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Hourly summaries
+
+  /v1/agent/observations:
+    post:
+      summary: Create agent observation
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:observations:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                observation_type: { type: string }
+                content: { type: string }
+                confidence: { type: number }
+      responses:
+        '201':
+          description: Observation created
+    get:
+      summary: List agent observations
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:observations:write]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Observations list
+
+  /v1/agent/interventions:
+    post:
+      summary: Propose intervention
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:interventions:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intervention_type: { type: string }
+                content: { type: string }
+                reason: { type: string }
+      responses:
+        '201':
+          description: Intervention proposed
+
+  /v1/agent/interventions/{id}:
+    patch:
+      summary: Update intervention status
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:interventions:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [proposed, approved_by_policy, delivered, acknowledged, rejected] }
+      responses:
+        '200':
+          description: Intervention updated
+
+  /v1/device/interventions:
+    get:
+      summary: Get pending interventions for device
+      tags: [Device]
+      security:
+        - BearerAuth: [device:read_interventions]
+      responses:
+        '200':
+          description: Pending interventions
+
+  /v1/feedback:
+    post:
+      summary: Submit feedback
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:feedback:read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_type: { type: string }
+                target_id: { type: string }
+                rating: { type: integer }
+                comment: { type: string }
+      responses:
+        '201':
+          description: Feedback submitted
+    get:
+      summary: List feedback
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:feedback:read]
+      responses:
+        '200':
+          description: Feedback list
+
+  /v1/goals:
+    get:
+      summary: List goals
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:read]
+      responses:
+        '200':
+          description: Goals list
+    post:
+      summary: Create goal
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, goal_type]
+              properties:
+                title: { type: string }
+                goal_type: { type: string }
+                target: { type: object }
+      responses:
+        '201':
+          description: Goal created
+        '400':
+          description: Validation error (title or goal_type missing)
+
+  /v1/goals/{id}:
+    patch:
+      summary: Update goal
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Goal updated
+    delete:
+      summary: Delete goal
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Goal deleted
+
+  /v1/goals/{id}/progress:
+    get:
+      summary: Evaluate goal progress
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Goal progress evaluation
+
+  /v1/habits:
+    get:
+      summary: List habits
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:read]
+      responses:
+        '200':
+          description: Habits list
+    post:
+      summary: Create habit
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, habit_type]
+              properties:
+                title: { type: string }
+                habit_type: { type: string }
+                target: { type: object }
+                schedule: { type: object }
+      responses:
+        '201':
+          description: Habit created
+        '400':
+          description: Validation error (title or habit_type missing)
+
+  /v1/habits/{id}:
+    patch:
+      summary: Update habit
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Habit updated
+    delete:
+      summary: Delete habit
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Habit deleted
+
+  /v1/habits/{id}/streak:
+    post:
+      summary: Record habit streak
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completed: { type: boolean }
+                timestamp: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Streak updated
+
+  /v1/habits/{id}/evaluation:
+    get:
+      summary: Evaluate habit completion
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:habits:read]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Habit evaluation
+
+  /v1/outcomes:
+    post:
+      summary: Record outcome
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:outcomes:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intervention_id: { type: string }
+                outcome_type: { type: string }
+                description: { type: string }
+      responses:
+        '201':
+          description: Outcome recorded
+    get:
+      summary: List outcomes
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:feedback:read]
+      responses:
+        '200':
+          description: Outcomes list
+
+  /v1/baselines:
+    get:
+      summary: List baselines
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:read]
+      responses:
+        '200':
+          description: Baselines list
+    post:
+      summary: Create/upsert baseline
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metric_name]
+              properties:
+                metric_name: { type: string }
+                value: { type: number }
+                window_days: { type: integer, default: 7 }
+      responses:
+        '201':
+          description: Baseline created
+        '400':
+          description: Validation error (metric_name missing)
+
+  /v1/baselines/{id}:
+    delete:
+      summary: Delete baseline
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:goals:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Baseline deleted
+
+  /v1/corrections:
+    get:
+      summary: List user corrections
+      tags: [Device]
+      security:
+        - BearerAuth: [device:write_feedback]
+      responses:
+        '200':
+          description: Corrections list
+    post:
+      summary: Create user correction
+      tags: [Device]
+      security:
+        - BearerAuth: [device:write_feedback]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                correction_type: { type: string, enum: [label, split, delete, merge, move] }
+                segment_id: { type: string }
+                new_label: { type: string }
+      responses:
+        '201':
+          description: Correction created
+
+  /v1/corrections/{id}:
+    delete:
+      summary: Delete correction
+      tags: [Device]
+      security:
+        - BearerAuth: [device:write_feedback]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Correction deleted
+
+  /v1/stream:
+    get:
+      summary: SSE stream for real-time context updates
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:context:read]
+      responses:
+        '200':
+          description: Event stream (text/event-stream)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /v1/metrics/work-patterns:
+    get:
+      summary: Get work pattern metrics (focus bouts, switching rates)
+      tags: [Metrics]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      responses:
+        '200':
+          description: Work pattern metrics
+
+  /v1/metrics/readiness:
+    get:
+      summary: Get readiness & fatigue score
+      tags: [Metrics]
+      security:
+        - BearerAuth: [agent:context:read]
+      responses:
+        '200':
+          description: Readiness score
+
+  /v1/analytics/insights:
+    get:
+      summary: Get cross-domain analytics insights
+      tags: [Analytics]
+      security:
+        - BearerAuth: [agent:summaries:read]
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [1d, 7d, 30d], default: 7d }
+      responses:
+        '200':
+          description: Analytics insights
+
+  /v1/interventions/{id}/effectiveness:
+    get:
+      summary: Get intervention effectiveness score
+      tags: [Analytics]
+      security:
+        - BearerAuth: [agent:interventions:write]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Effectiveness score
+
+  /v1/health/collectors:
+    get:
+      summary: Get collector health & staleness
+      tags: [Health]
+      security:
+        - BearerAuth: [agent:context:read]
+      responses:
+        '200':
+          description: Collector health status
+
+  /v1/export/daily:
+    get:
+      summary: Export all data for a specific day
+      tags: [Admin]
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date, example: 2026-07-29 }
+      responses:
+        '200':
+          description: Daily data export bundle
+
+  /v1/export/weekly:
+    get:
+      summary: Export all data for a specific week
+      tags: [Admin]
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - name: week
+          in: query
+          required: true
+          schema: { type: string, example: 2026-W31 }
+      responses:
+        '200':
+          description: Weekly data export bundle
+
+  /v1/audit:
+    get:
+      summary: Get audit log
+      tags: [Admin]
+      security:
+        - BearerAuth: [admin]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Audit log entries
+
+  /v1/privacy/sensitive-mode:
+    get:
+      summary: Get sensitive mode status
+      tags: [Privacy]
+      security:
+        - BearerAuth: [device:read_config]
+      responses:
+        '200':
+          description: Sensitive mode status
+    post:
+      summary: Set sensitive mode
+      tags: [Privacy]
+      security:
+        - BearerAuth: [device:read_config]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: Sensitive mode updated
+
+  /v1/privacy/wipe:
+    post:
+      summary: Wipe all user data (kill switch)
+      tags: [Admin]
+      security:
+        - BearerAuth: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm: { type: boolean }
+      responses:
+        '200':
+          description: All data wiped
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Device tokens: device:ingest, device:read_config, device:read_interventions, device:write_feedback
+        Agent tokens: agent:context:read, agent:briefing:read, agent:timeline:read, agent:events:read,
+                      agent:summaries:read, agent:observations:write, agent:interventions:write,
+                      agent:feedback:read, agent:goals:read, agent:goals:write, agent:habits:read,
+                      agent:habits:write, agent:outcomes:write
+        Admin tokens: admin

@@ -808,6 +808,10 @@ func (h *Handler) PostGoal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "title is required")
 		return
 	}
+	if goal.GoalType == "" {
+		respondError(w, http.StatusBadRequest, "goal_type is required")
+		return
+	}
 
 	uid := userID(r)
 	if goal.GoalID == "" {
@@ -984,6 +988,10 @@ func (h *Handler) PostHabit(w http.ResponseWriter, r *http.Request) {
 
 	if habit.Title == "" {
 		respondError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	if habit.HabitType == "" {
+		respondError(w, http.StatusBadRequest, "habit_type is required")
 		return
 	}
 
