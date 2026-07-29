@@ -1207,6 +1207,66 @@ func TestUserCorrection_roundTrip(t *testing.T) {
 	}
 }
 
+// --- Token rotation tests (§28) ---
+
+func TestPostTokenRotation(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	body, _ := json.Marshal(map[string]interface{}{"token_type": "agent"})
+	req := httptest.NewRequest("POST", "/v1/auth/rotate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostTokenRotation(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["new_token"] == nil || resp["new_token"] == "" {
+		t.Error("expected new_token in response")
+	}
+	if resp["token_type"] != "agent" {
+		t.Errorf("token_type = %v, want agent", resp["token_type"])
+	}
+}
+
+func TestPostTokenRotation_invalidType(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	body, _ := json.Marshal(map[string]interface{}{"token_type": "invalid"})
+	req := httptest.NewRequest("POST", "/v1/auth/rotate", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostTokenRotation(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestPostTokenRevoke(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("POST", "/v1/auth/revoke", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostTokenRevoke(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != "all_tokens_revoked" {
+		t.Errorf("status = %v, want all_tokens_revoked", resp["status"])
+	}
+}
+
 // --- Wipe data test ---
 
 func TestWipeData(t *testing.T) {
