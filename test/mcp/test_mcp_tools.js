@@ -3,7 +3,7 @@
 /**
  * MCP Server Test Suite — §41 Testing and Simulation Harness
  *
- * Tests all 42 MCP tools for proper request/response handling,
+ * Tests all 47 MCP tools for proper request/response handling,
  * error cases, and data validation.
  *
  * Run: node test/mcp/test_mcp_tools.js
@@ -169,6 +169,22 @@ const mockResponses = {
     data: {
       intervention_id: "int-1",
       status: "delivered",
+    },
+  },
+  "GET:/v1/interventions/int-test/effectiveness": {
+    status: 200,
+    data: {
+      intervention_id: "int-1",
+      effectiveness_score: 0.65,
+      rating: "moderately_effective",
+      components: {
+        accepted: 1.0,
+        behavior_change: 0.7,
+        metric_improvement: 0.5,
+        user_helpfulness: 0.75,
+      },
+      total_outcomes: 3,
+      total_feedback: 4,
     },
   },
   "GET:/v1/feedback": {
@@ -359,6 +375,18 @@ const mockResponses = {
       daily_summary: {},
     },
   },
+  "GET:/v1/export/weekly": {
+    status: 200,
+    data: {
+      export_version: "1.0",
+      exported_at: "2026-07-28T12:00:00Z",
+      user_id: "primary",
+      week: "2026-W31",
+      events: [],
+      segments: [],
+      weekly_summary: {},
+    },
+  },
   "POST:/v1/privacy/wipe": {
     status: 200,
     data: {
@@ -366,9 +394,25 @@ const mockResponses = {
       message: "All user data has been erased",
     },
   },
+  "GET:/v1/analytics/insights": {
+    status: 200,
+    data: {
+      period: "7d",
+      date_range: { from: "2026-07-21T00:00:00Z", to: "2026-07-28T12:00:00Z" },
+      focus: {
+        total_focus_minutes: 840,
+        total_meeting_minutes: 300,
+        total_distraction_minutes: 180,
+        focus_session_count: 14,
+      },
+      habits: { active: 3, completed: 1, total: 4, avg_streak: 5.2 },
+      goals: { active: 2, completed: 1, total: 3 },
+      interventions: { total: 8, accepted: 5, effectiveness_rate: 0.625 },
+    },
+  },
 };
 
-// Define all 44 MCP tools and their expected behavior
+// Define all 47 MCP tools and their expected behavior
 const mcpTools = [
   // Context & Briefing (2)
   {
@@ -488,7 +532,7 @@ const mcpTools = [
       assert(Array.isArray(data.events), "Must have events array");
     },
   },
-  // Agent Loop — Read/Write (4)
+  // Agent Loop — Read/Write (5)
   {
     name: "add_agent_observation",
     description: "Write an observation about user behavior",
@@ -528,6 +572,18 @@ const mcpTools = [
     validates: (data) => {
       assert(data.intervention_id, "Must have intervention_id");
       assert(data.status, "Must have status");
+    },
+  },
+  {
+    name: "get_intervention_effectiveness",
+    description: "Compute intervention effectiveness score from outcomes and feedback",
+    endpoint: "/v1/interventions/int-test/effectiveness",
+    method: "GET",
+    requiredFields: ["intervention_id", "effectiveness_score", "rating"],
+    validates: (data) => {
+      assert(data.intervention_id, "Must have intervention_id");
+      assert(typeof data.effectiveness_score === "number", "Must have effectiveness_score");
+      assert(data.rating, "Must have rating");
     },
   },
   // Feedback (2)
@@ -815,7 +871,22 @@ const mcpTools = [
       assert(data.assessment, "Must have assessment");
     },
   },
-  // Data Export & Privacy (2)
+  // Analytics (1)
+  {
+    name: "get_analytics_insights",
+    description: "Get cross-domain analytics insights",
+    endpoint: "/v1/analytics/insights",
+    method: "GET",
+    requiredFields: ["period", "focus", "habits", "goals", "interventions"],
+    validates: (data) => {
+      assert(data.period, "Must have period");
+      assert(data.focus, "Must have focus");
+      assert(data.habits, "Must have habits");
+      assert(data.goals, "Must have goals");
+      assert(data.interventions, "Must have interventions");
+    },
+  },
+  // Data Export & Privacy (3)
   {
     name: "export_daily_data",
     description: "Export all data for a specific day as a structured JSON bundle",
@@ -825,6 +896,18 @@ const mcpTools = [
     validates: (data) => {
       assert(data.export_version, "Must have export_version");
       assert(data.date, "Must have date");
+      assert(Array.isArray(data.events), "Must have events array");
+    },
+  },
+  {
+    name: "export_weekly_data",
+    description: "Export all data for a specific week as a structured JSON bundle",
+    endpoint: "/v1/export/weekly",
+    method: "GET",
+    requiredFields: ["export_version", "week", "events"],
+    validates: (data) => {
+      assert(data.export_version, "Must have export_version");
+      assert(data.week, "Must have week");
       assert(Array.isArray(data.events), "Must have events array");
     },
   },
@@ -842,7 +925,7 @@ const mcpTools = [
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 44, `Expected 44 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 47, `Expected 47 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -908,10 +991,18 @@ const architectureEndpoints = [
   "/v1/audit",
   "/v1/metrics/work-patterns",
   "/v1/metrics/readiness",
+  "/v1/export/daily",
+  "/v1/export/weekly",
+  "/v1/interventions/{id}/effectiveness",
+  "/v1/analytics/insights",
 ];
 const toolEndpoints = mcpTools.map((t) => t.endpoint);
 for (const endpoint of architectureEndpoints) {
-  assert(toolEndpoints.includes(endpoint), `Missing endpoint: ${endpoint}`);
+  const paramEndpoint = endpoint.replace("/{id}", "");
+  assert(
+    toolEndpoints.includes(endpoint) || toolEndpoints.some(e => e.startsWith(paramEndpoint)),
+    `Missing endpoint: ${endpoint}`
+  );
 }
 console.log(`  ✓ All ${architectureEndpoints.length} architecture endpoints covered\n`);
 
@@ -943,6 +1034,7 @@ const scopeMap = {
   get_agent_observations: "agent:observations:read",
   propose_intervention: "agent:interventions:write",
   update_intervention_status: "agent:interventions:write",
+  get_intervention_effectiveness: "agent:interventions:read",
   submit_feedback: "agent:feedback:write",
   get_feedback: "agent:feedback:read",
   record_outcome: "agent:outcomes:write",
@@ -970,7 +1062,9 @@ const scopeMap = {
   get_collector_health: "agent:health:read",
   evaluate_goal_progress: "agent:goals:read",
   evaluate_habit_completion: "agent:habits:read",
+  get_analytics_insights: "agent:analytics:read",
   export_daily_data: "admin",
+  export_weekly_data: "admin",
   wipe_all_data: "admin",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {

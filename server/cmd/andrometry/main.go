@@ -129,8 +129,15 @@ func main() {
 	// Habit Evaluation (§38)
 	mux.Handle("GET /v1/habits/{id}/evaluation", auth(middleware.RequireScope("agent:habits:read")(http.HandlerFunc(h.EvaluateHabitCompletion))))
 
+	// Intervention Effectiveness (§35)
+	mux.Handle("GET /v1/interventions/{id}/effectiveness", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.GetInterventionEffectiveness))))
+
+	// Analytics Insights (§20)
+	mux.Handle("GET /v1/analytics/insights", auth(middleware.RequireScope("agent:summaries:read")(http.HandlerFunc(h.GetAnalyticsInsights))))
+
 	// Data Export (§27)
 	mux.Handle("GET /v1/export/daily", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.ExportDaily))))
+	mux.Handle("GET /v1/export/weekly", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.ExportWeekly))))
 
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))

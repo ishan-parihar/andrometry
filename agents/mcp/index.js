@@ -964,6 +964,39 @@ server.tool(
   }
 );
 
+server.tool(
+  "get_intervention_effectiveness",
+  "Compute intervention effectiveness score from outcomes and feedback (§35)",
+  {
+    intervention_id: z.string().describe("Intervention ID to evaluate"),
+  },
+  async ({ intervention_id }) => {
+    const data = await relayFetch(`/v1/interventions/${intervention_id}/effectiveness`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
+// Analytics Tools (§20)
+// ============================================================
+
+server.tool(
+  "get_analytics_insights",
+  "Get cross-domain analytics insights — focus trends, habit stats, intervention effectiveness, baseline deviations",
+  {
+    period: z.enum(["1d", "7d", "30d"]).optional().describe("Analysis period (default: 7d)"),
+  },
+  async ({ period }) => {
+    const params = period ? `?period=${period}` : "";
+    const data = await relayFetch(`/v1/analytics/insights${params}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
 // ============================================================
 // Data Export & Privacy Tools (§27, §22.6)
 // ============================================================
@@ -976,6 +1009,20 @@ server.tool(
   },
   async ({ date }) => {
     const data = await relayFetch(`/v1/export/daily?date=${date}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "export_weekly_data",
+  "Export all data for a specific week as a structured JSON bundle (§27 Data Export)",
+  {
+    week: z.string().describe("Week in YYYY-WXX format (e.g., '2026-W31')"),
+  },
+  async ({ week }) => {
+    const data = await relayFetch(`/v1/export/weekly?week=${week}`);
     return {
       content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
     };
