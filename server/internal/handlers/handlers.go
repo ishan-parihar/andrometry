@@ -804,6 +804,11 @@ func (h *Handler) PostGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if goal.Title == "" {
+		respondError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+
 	uid := userID(r)
 	if goal.GoalID == "" {
 		goal.GoalID = generateID()
@@ -974,6 +979,11 @@ func (h *Handler) PostHabit(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.Unmarshal(body, &habit); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	if habit.Title == "" {
+		respondError(w, http.StatusBadRequest, "title is required")
 		return
 	}
 
@@ -1166,6 +1176,11 @@ func (h *Handler) PostBaseline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.MetricName == "" {
+		respondError(w, http.StatusBadRequest, "metric_name is required")
+		return
+	}
+
 	uid := userID(r)
 	if req.BaselineID == "" {
 		req.BaselineID = generateID()
@@ -1320,7 +1335,7 @@ func (h *Handler) StreamContext(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var lastETag string
 
-	// Send initial context immediately
+	// Send initial context immediately (may be empty if no context exists yet)
 	h.sendContextEvent(w, flusher, uid, &lastETag)
 
 	// Poll for context changes every 5 seconds

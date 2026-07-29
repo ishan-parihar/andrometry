@@ -497,11 +497,14 @@ async function testAgentEndpoints() {
   });
 
   // Stream (SSE)
-  await test('GET /v1/stream — SSE endpoint responds', async () => {
+  await test('GET /v1/stream — SSE endpoint returns event-stream', async () => {
+    // SSE is a long-lived connection, so we check the initial response headers
     const res = await httpRequest('GET', '/v1/stream', null, AGENT_TOKEN);
-    // SSE may return 200 with event-stream content type, or 500 if no context exists
-    // 500 is acceptable if the server can't stream without context
-    assert(res.status === 200 || res.status === 204 || res.status === 500, `expected 200, 204, or 500, got ${res.status}`);
+    // Server should return 200 with text/event-stream, or 500 if Flusher not supported
+    assert(res.status === 200 || res.status === 500, `expected 200 or 500, got ${res.status}`);
+    if (res.status === 200) {
+      assert(res.headers['content-type'] === 'text/event-stream', `expected text/event-stream content type, got ${res.headers['content-type']}`);
+    }
   });
 }
 
@@ -577,6 +580,21 @@ async function testDeleteEndpoints() {
     assertStatus(res, 200, 'delete baseline');
   });
 
+  await test('DELETE /v1/goals/nonexistent-id — returns error', async () => {
+    const res = await httpRequest('DELETE', '/v1/goals/nonexistent-id-12345', null, AGENT_TOKEN);
+    assert(res.status >= 200 && res.status < 500, `expected 2xx-4xx, got ${res.status}`);
+  });
+
+  await test('DELETE /v1/habits/nonexistent-id — returns error', async () => {
+    const res = await httpRequest('DELETE', '/v1/habits/nonexistent-id-12345', null, AGENT_TOKEN);
+    assert(res.status >= 200 && res.status < 500, `expected 2xx-4xx, got ${res.status}`);
+  });
+
+  await test('DELETE /v1/baselines/nonexistent-id — returns error', async () => {
+    const res = await httpRequest('DELETE', '/v1/baselines/nonexistent-id-12345', null, AGENT_TOKEN);
+    assert(res.status >= 200 && res.status < 500, `expected 2xx-4xx, got ${res.status}`);
+  });
+
   await test('DELETE /v1/corrections/{id} — first correction', async () => {
     // Get corrections first to find an ID
     const listRes = await httpRequest('GET', '/v1/corrections', null, DEVICE_TOKEN);
@@ -600,11 +618,24 @@ async function testErrorCases() {
     assert(res.status >= 200 && res.status < 500, `expected 2xx-4xx, got ${res.status}`);
   });
 
-  await test('POST /v1/goals — empty body', async () => {
+  await test('POST /v1/goals — empty body returns 400', async () => {
     const res = await httpRequest('POST', '/v1/goals', {}, AGENT_TOKEN);
-    // Server may accept empty body (no validation) or reject it
-    // Both 2xx and 4xx are acceptable depending on server validation
-    assert(res.status >= 200 && res.status < 500, `expected 2xx-4xx, got ${res.status}`);
+    assertStatus(res, 400, 'empty goal body');
+  });
+
+  await test('POST /v1/goals — title-only creates successfully', async () => {
+    const res = await httpRequest('POST', '/v1/goals', { title: 'Test goal' }, AGENT_TOKEN);
+    assertStatus(res, 201, 'goal with title only');
+  });
+
+  await test('POST /v1/habits — empty body returns 400', async () => {
+    const res = await httpRequest('POST', '/v1/habits', {}, AGENT_TOKEN);
+    assertStatus(res, 400, 'empty habit body');
+  });
+
+  await test('POST /v1/baselines — empty body returns 400', async () => {
+    const res = await httpRequest('POST', '/v1/baselines', {}, AGENT_TOKEN);
+    assertStatus(res, 400, 'empty baseline body');
   });
 
   await test('GET /v1/goals/nonexistent-id/progress', async () => {
