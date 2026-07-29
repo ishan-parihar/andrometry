@@ -34,6 +34,7 @@ func (h *Handler) ExportDaily(w http.ResponseWriter, r *http.Request) {
 	dailySummary, _ := h.DB.GetDailySummary(uid, date)
 	contextData, _ := h.DB.GetContextByUser(uid)
 	observations, _ := h.DB.GetObservations(uid, 10000)
+	interventions, _ := h.DB.GetInterventionsByDateRange(uid, dayStart, dayEnd, 10000)
 	outcomes, _ := h.DB.GetOutcomes(uid, "", 10000)
 	feedbacks, _ := h.DB.GetFeedback(uid, "", "", 10000)
 	goals, _ := h.DB.GetGoals(uid)
@@ -53,6 +54,9 @@ func (h *Handler) ExportDaily(w http.ResponseWriter, r *http.Request) {
 	}
 	if observations == nil {
 		observations = []models.AgentObservation{}
+	}
+	if interventions == nil {
+		interventions = []models.Intervention{}
 	}
 	if outcomes == nil {
 		outcomes = []models.Outcome{}
@@ -107,6 +111,7 @@ func (h *Handler) ExportDaily(w http.ResponseWriter, r *http.Request) {
 		"hourly_summaries":      hourlySummaries,
 		"context":         contextObj,
 		"observations":    observations,
+		"interventions":   interventions,
 		"outcomes":        outcomes,
 		"feedback":        feedbacks,
 		"goals":           goals,
