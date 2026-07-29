@@ -24,7 +24,8 @@ func (h *Handler) PostTokenRotation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.TokenType == "" {
-		req.TokenType = "agent"
+		respondError(w, http.StatusBadRequest, "token_type is required")
+		return
 	}
 	if req.TokenType != "device" && req.TokenType != "agent" {
 		respondError(w, http.StatusBadRequest, "token_type must be 'device' or 'agent'")

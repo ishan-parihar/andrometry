@@ -1056,9 +1056,21 @@ func (db *DB) RevokeAllTokensForUser(userID string) error {
 	return err
 }
 
-// RevokeTokensByType revokes all tokens of a specific type for a user (used during rotation).
+// RevokeTokensByType revokes only active (non-revoked) tokens of a given type for a user.
+// Used during token rotation to invalidate old tokens after creating a new one.
+// If excludeTokenID is non-empty, that token is preserved (not revoked).
 // Returns the number of tokens revoked.
-func (db *DB) RevokeTokensByType(userID, tokenType string) (int64, error) {
+func (db *DB) RevokeTokensByType(userID, tokenType, excludeTokenID string) (int64, error) {
+	if excludeTokenID != "" {
+		result, err := db.Exec(`
+			UPDATE auth_tokens SET revoked_at = datetime('now')
+			WHERE user_id = ? AND token_type = ? AND revoked_at IS NULL AND token_id != ?
+		`, userID, tokenType, excludeTokenID)
+		if err != nil {
+			return 0, err
+		}
+		return result.RowsAffected()
+	}
 	result, err := db.Exec(`
 		UPDATE auth_tokens SET revoked_at = datetime('now')
 		WHERE user_id = ? AND token_type = ? AND revoked_at IS NULL

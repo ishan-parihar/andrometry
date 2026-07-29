@@ -8,15 +8,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andrometry/server/internal/db"
+	dbpkg "github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
 	"github.com/andrometry/server/internal/middleware"
 	"github.com/andrometry/server/internal/models"
 )
 
-func setupTestDB(t *testing.T) *db.DB {
+func setupTestDB(t *testing.T) *dbpkg.DB {
 	t.Helper()
-	database, err := db.Open(":memory:")
+	database, err := dbpkg.Open(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *db.DB {
 	return database
 }
 
-func setupTestHandler(t *testing.T) (*Handler, *db.DB) {
+func setupTestHandler(t *testing.T) (*Handler, *dbpkg.DB) {
 	t.Helper()
 	database := setupTestDB(t)
 	h := NewHandler(database)
@@ -732,10 +732,10 @@ func TestBaseline_roundTrip(t *testing.T) {
 }
 
 func TestFiveMinuteSummary_roundTrip(t *testing.T) {
-	h, db := setupTestHandler(t)
+	h, database := setupTestHandler(t)
 
 	// Insert five-minute summary directly via store
-	err := db.UpsertFiveMinuteSummary("primary", 
+	err := database.UpsertFiveMinuteSummary("primary", 
 		"2026-01-01T10:00:00Z",
 		"2026-01-01T10:05:00Z",
 		`{"activity":"deep_work","minutes":5}`,
@@ -771,10 +771,10 @@ func TestFiveMinuteSummary_roundTrip(t *testing.T) {
 }
 
 func TestHourlySummary_roundTrip(t *testing.T) {
-	h, db := setupTestHandler(t)
+	h, database := setupTestHandler(t)
 
 	// Insert hourly summary directly via store
-	err := db.UpsertHourlySummary("primary", 
+	err := database.UpsertHourlySummary("primary", 
 		"2026-01-01T10:00:00Z",
 		"2026-01-01T11:00:00Z",
 		`{"focus_minutes":42,"meeting_minutes":15}`,
@@ -1212,6 +1212,17 @@ func TestUserCorrection_roundTrip(t *testing.T) {
 func TestPostTokenRotation(t *testing.T) {
 	h, _ := setupTestHandler(t)
 
+	// Create an initial token for the user
+	tokenID := "test-token-1"
+	hash := dbpkg.HashToken("old-token-123")
+	_ = h.DB.CreateToken(&models.AuthToken{
+		TokenID:   tokenID,
+		UserID:    "primary",
+		TokenHash: hash,
+		TokenType: "agent",
+		Scopes:    "agent:context:read",
+	})
+
 	body, _ := json.Marshal(map[string]interface{}{"token_type": "agent"})
 	req := httptest.NewRequest("POST", "/v1/auth/rotate", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1230,6 +1241,20 @@ func TestPostTokenRotation(t *testing.T) {
 	}
 	if resp["token_type"] != "agent" {
 		t.Errorf("token_type = %v, want agent", resp["token_type"])
+	}
+
+	// Verify old token is revoked
+	oldToken, _ := h.DB.ValidateToken(hash)
+	if oldToken != nil {
+		t.Error("old token should be revoked after rotation")
+	}
+
+	// Verify new token is valid
+	newTokenStr := resp["new_token"].(string)
+	newHash := dbpkg.HashToken(newTokenStr)
+	newToken, _ := h.DB.ValidateToken(newHash)
+	if newToken == nil {
+		t.Error("new token should be valid after rotation")
 	}
 }
 

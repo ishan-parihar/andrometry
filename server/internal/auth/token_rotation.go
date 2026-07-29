@@ -55,7 +55,7 @@ func (tr *TokenRotation) RotateToken(userID, tokenType string) (string, error) {
 
 	// Phase 2: Revoke old tokens of the same type for this user
 	// The new token is already persisted, so revoking old ones is safe.
-	revoked, err := tr.DB.RevokeTokensByType(userID, tokenType)
+	revoked, err := tr.DB.RevokeTokensByType(userID, tokenType, tokenID)
 	if err != nil {
 		log.Printf("[token-rotation] warning: failed to revoke old tokens: %v", err)
 		// Don't fail the rotation — new token is valid
