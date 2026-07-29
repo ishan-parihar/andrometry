@@ -347,9 +347,28 @@ const mockResponses = {
       staleness_seconds: 30,
     },
   },
+  "GET:/v1/export/daily": {
+    status: 200,
+    data: {
+      export_version: "1.0",
+      exported_at: "2026-07-28T12:00:00Z",
+      user_id: "primary",
+      date: "2026-07-28",
+      events: [],
+      segments: [],
+      daily_summary: {},
+    },
+  },
+  "POST:/v1/privacy/wipe": {
+    status: 200,
+    data: {
+      status: "wiped",
+      message: "All user data has been erased",
+    },
+  },
 };
 
-// Define all 42 MCP tools and their expected behavior
+// Define all 44 MCP tools and their expected behavior
 const mcpTools = [
   // Context & Briefing (2)
   {
@@ -796,11 +815,34 @@ const mcpTools = [
       assert(data.assessment, "Must have assessment");
     },
   },
+  // Data Export & Privacy (2)
+  {
+    name: "export_daily_data",
+    description: "Export all data for a specific day as a structured JSON bundle",
+    endpoint: "/v1/export/daily",
+    method: "GET",
+    requiredFields: ["export_version", "date", "events"],
+    validates: (data) => {
+      assert(data.export_version, "Must have export_version");
+      assert(data.date, "Must have date");
+      assert(Array.isArray(data.events), "Must have events array");
+    },
+  },
+  {
+    name: "wipe_all_data",
+    description: "Erase ALL user data from the server — irreversible kill switch",
+    endpoint: "/v1/privacy/wipe",
+    method: "POST",
+    requiredFields: ["status"],
+    validates: (data) => {
+      assert(data.status === "wiped", "Status must be wiped");
+    },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 42, `Expected 42 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 44, `Expected 44 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -928,6 +970,8 @@ const scopeMap = {
   get_collector_health: "agent:health:read",
   evaluate_goal_progress: "agent:goals:read",
   evaluate_habit_completion: "agent:habits:read",
+  export_daily_data: "admin",
+  wipe_all_data: "admin",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
   const tool = mcpTools.find((t) => t.name === toolName);

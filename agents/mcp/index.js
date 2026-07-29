@@ -965,6 +965,39 @@ server.tool(
 );
 
 // ============================================================
+// Data Export & Privacy Tools (§27, §22.6)
+// ============================================================
+
+server.tool(
+  "export_daily_data",
+  "Export all data for a specific day as a structured JSON bundle (§27 Data Export)",
+  {
+    date: z.string().describe("Date in YYYY-MM-DD format"),
+  },
+  async ({ date }) => {
+    const data = await relayFetch(`/v1/export/daily?date=${date}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+server.tool(
+  "wipe_all_data",
+  "Erase ALL user data from the server — irreversible kill switch (§22.6)",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/privacy/wipe", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 

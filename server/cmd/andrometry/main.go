@@ -129,6 +129,9 @@ func main() {
 	// Habit Evaluation (§38)
 	mux.Handle("GET /v1/habits/{id}/evaluation", auth(middleware.RequireScope("agent:habits:read")(http.HandlerFunc(h.EvaluateHabitCompletion))))
 
+	// Data Export (§27)
+	mux.Handle("GET /v1/export/daily", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.ExportDaily))))
+
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
 	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))
