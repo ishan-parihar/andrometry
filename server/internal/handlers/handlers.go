@@ -1343,7 +1343,9 @@ func (h *Handler) StreamContext(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var lastETag string
 
-	// Send initial context immediately (may be empty if no context exists yet)
+	// Send initial comment to establish connection, then try context
+	fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
 	h.sendContextEvent(w, flusher, uid, &lastETag)
 
 	// Poll for context changes every 5 seconds
