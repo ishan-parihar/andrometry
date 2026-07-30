@@ -3,7 +3,7 @@
 /**
  * MCP Server Test Suite — §41 Testing and Simulation Harness
  *
- * Tests all 47 MCP tools for proper request/response handling,
+ * Tests all 59 MCP tools for proper request/response handling,
  * error cases, and data validation.
  *
  * Run: node test/mcp/test_mcp_tools.js
@@ -408,6 +408,36 @@ const mockResponses = {
       habits: { active: 3, completed: 1, total: 4, avg_streak: 5.2 },
       goals: { active: 2, completed: 1, total: 3 },
       interventions: { total: 8, accepted: 5, effectiveness_rate: 0.625 },
+    },
+  },
+  "/v1/context/data-quality": {
+    status: 200,
+    data: {
+      completeness: 0.87,
+      staleness_seconds: 42,
+      last_context_time: "2026-07-28T10:14:00Z",
+      etag: "abc123",
+      missing_collectors: [],
+      degraded_collectors: [],
+      permission_issues: [],
+      clock_drift_detected: false,
+    },
+  },
+  "GET:/v1/agents/coach/effectiveness": {
+    status: 200,
+    data: {
+      agent_id: "coach",
+      effectiveness_score: 0.75,
+      total_interventions: 10,
+      approved_count: 10,
+      delivered_count: 8,
+      delivery_rate: 0.8,
+      total_outcomes: 6,
+      accepted_count: 5,
+      behavior_change_count: 3,
+      acceptance_rate: 0.833,
+      avg_effectiveness: 0.7,
+      computed_at: "2026-07-28T10:30:00Z",
     },
   },
 };
@@ -921,11 +951,119 @@ const mcpTools = [
       assert(data.status === "wiped", "Status must be wiped");
     },
   },
+  // === Convenience Tools (§18.1, 12 new) ===
+  {
+    name: "get_activity_segments",
+    description: "Get activity segments from the timeline",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => { assert(Array.isArray(data.timeline), "Must have timeline array"); },
+  },
+  {
+    name: "get_communication_segments",
+    description: "Get communication segments — calls, messages, email, chat",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => { assert(Array.isArray(data.timeline), "Must have timeline array"); },
+  },
+  {
+    name: "get_sleep_segments",
+    description: "Get sleep segments from the timeline",
+    endpoint: "/v1/timeline",
+    method: "GET",
+    requiredFields: ["timeline"],
+    validates: (data) => { assert(Array.isArray(data.timeline), "Must have timeline array"); },
+  },
+  {
+    name: "get_app_usage",
+    description: "Get app usage summary events",
+    endpoint: "/v1/events",
+    method: "GET",
+    requiredFields: ["events"],
+    validates: (data) => { assert(Array.isArray(data.events), "Must have events array"); },
+  },
+  {
+    name: "get_notification_load",
+    description: "Get notification events to assess notification load",
+    endpoint: "/v1/events",
+    method: "GET",
+    requiredFields: ["events"],
+    validates: (data) => { assert(Array.isArray(data.events), "Must have events array"); },
+  },
+  {
+    name: "get_health_summary_events",
+    description: "Get health data events (steps, heart rate, sleep)",
+    endpoint: "/v1/events",
+    method: "GET",
+    requiredFields: ["events"],
+    validates: (data) => { assert(Array.isArray(data.events), "Must have events array"); },
+  },
+  {
+    name: "get_sleep_summary_events",
+    description: "Get sleep summary events",
+    endpoint: "/v1/events",
+    method: "GET",
+    requiredFields: ["events"],
+    validates: (data) => { assert(Array.isArray(data.events), "Must have events array"); },
+  },
+  {
+    name: "get_calendar_context_events",
+    description: "Get calendar events for context",
+    endpoint: "/v1/events",
+    method: "GET",
+    requiredFields: ["events"],
+    validates: (data) => { assert(Array.isArray(data.events), "Must have events array"); },
+  },
+  {
+    name: "get_data_quality",
+    description: "Get data quality signals — completeness, staleness, missing collectors",
+    endpoint: "/v1/context/data-quality",
+    method: "GET",
+    requiredFields: ["completeness", "staleness_seconds", "missing_collectors", "degraded_collectors"],
+    validates: (data) => {
+      assert(typeof data.completeness === "number", "Must have completeness");
+      assert(typeof data.staleness_seconds === "number", "Must have staleness_seconds");
+      assert(Array.isArray(data.missing_collectors), "Must have missing_collectors array");
+      assert(Array.isArray(data.degraded_collectors), "Must have degraded_collectors array");
+    },
+  },
+  {
+    name: "get_agent_effectiveness",
+    description: "Get agent effectiveness score — delivery rate, acceptance rate",
+    endpoint: "/v1/agents/coach/effectiveness",
+    method: "GET",
+    requiredFields: ["agent_id", "effectiveness_score", "delivery_rate", "acceptance_rate", "computed_at"],
+    validates: (data) => {
+      assert(data.agent_id, "Must have agent_id");
+      assert(typeof data.effectiveness_score === "number", "Must have effectiveness_score");
+      assert(typeof data.delivery_rate === "number", "Must have delivery_rate");
+      assert(typeof data.acceptance_rate === "number", "Must have acceptance_rate");
+      assert(data.computed_at, "Must have computed_at");
+    },
+  },
+  {
+    name: "get_habit_metrics",
+    description: "Get habit metrics — streaks, habit strength, completion rates",
+    endpoint: "/v1/habits",
+    method: "GET",
+    requiredFields: ["habits"],
+    validates: (data) => { assert(Array.isArray(data.habits), "Must have habits array"); },
+  },
+  {
+    name: "get_baseline_comparison",
+    description: "Get baseline metrics for comparison with current performance",
+    endpoint: "/v1/baselines",
+    method: "GET",
+    requiredFields: ["baselines"],
+    validates: (data) => { assert(Array.isArray(data.baselines), "Must have baselines array"); },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 47, `Expected 47 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 59, `Expected 47 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -995,6 +1133,8 @@ const architectureEndpoints = [
   "/v1/export/weekly",
   "/v1/interventions/{id}/effectiveness",
   "/v1/analytics/insights",
+  "/v1/context/data-quality",
+  "/v1/agents/{id}/effectiveness",
 ];
 const toolEndpoints = mcpTools.map((t) => t.endpoint);
 for (const endpoint of architectureEndpoints) {
@@ -1066,6 +1206,18 @@ const scopeMap = {
   evaluate_habit_completion: "agent:habits:read",
   get_analytics_insights: "agent:analytics:read",
   export_daily_data: "admin",
+  get_activity_segments: "agent:timeline:read",
+  get_communication_segments: "agent:timeline:read",
+  get_sleep_segments: "agent:timeline:read",
+  get_app_usage: "agent:events:read",
+  get_notification_load: "agent:events:read",
+  get_health_summary_events: "agent:events:read",
+  get_sleep_summary_events: "agent:events:read",
+  get_calendar_context_events: "agent:events:read",
+  get_data_quality: "agent:context:read",
+  get_agent_effectiveness: "agent:interventions:read",
+  get_habit_metrics: "agent:habits:read",
+  get_baseline_comparison: "agent:goals:read",
   export_weekly_data: "admin",
   wipe_all_data: "admin",
 };

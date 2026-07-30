@@ -90,6 +90,51 @@ paths:
         '404':
           description: No context available
 
+  /v1/context/data-quality:
+    get:
+      summary: Get data quality signals (§11.4)
+      description: |
+        Returns completeness score, staleness, missing/degraded collectors,
+        and clock drift detection. Agents use this to know when not to trust
+        a conclusion based on the current context.
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:context:read]
+      responses:
+        '200':
+          description: Data quality signals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [completeness, staleness_seconds, missing_collectors, degraded_collectors, permission_issues, clock_drift_detected]
+                properties:
+                  completeness:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                    description: Fraction of expected data signals present
+                  staleness_seconds:
+                    type: integer
+                    description: Seconds since last context update (-1 if unknown)
+                  last_context_time: { type: string, description: ISO 8601 timestamp }
+                  etag: { type: string }
+                  missing_collectors:
+                    type: array
+                    items: { type: string }
+                    description: Collectors with no data (usage_stats, notifications, health_connect, location, calendar, calls_sms)
+                  degraded_collectors:
+                    type: array
+                    items: { type: string }
+                    description: Collectors with stale data
+                  permission_issues:
+                    type: array
+                    items: { type: string }
+                  clock_drift_detected:
+                    type: boolean
+                    description: Whether context timestamp is significantly in the future
+                  message: { type: string, description: Optional status message }
+
   /v1/briefing/current:
     get:
       summary: Get current briefing
@@ -527,6 +572,49 @@ paths:
         '200':
           description: Outcomes list
 
+  /v1/agents/{agent_id}/effectiveness:
+    get:
+      summary: Get agent effectiveness score (§35)
+      description: |
+        Computes agent effectiveness from interventions and outcomes.
+        Formula: 0.30 * delivery_rate + 0.35 * acceptance_rate + 0.35 * avg_effectiveness.
+        Agents use this to evaluate their own performance over time.
+      tags: [Analytics]
+      security:
+        - BearerAuth: [agent:interventions:read]
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Agent identifier to evaluate
+      responses:
+        '200':
+          description: Agent effectiveness score
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agent_id, effectiveness_score, delivery_rate, acceptance_rate, computed_at]
+                properties:
+                  agent_id: { type: string }
+                  effectiveness_score:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                  total_interventions: { type: integer }
+                  approved_count: { type: integer }
+                  delivered_count: { type: integer }
+                  delivery_rate: { type: number }
+                  total_outcomes: { type: integer }
+                  accepted_count: { type: integer }
+                  behavior_change_count: { type: integer }
+                  acceptance_rate: { type: number }
+                  avg_effectiveness: { type: number }
+                  computed_at: { type: string, format: date-time }
+        '400':
+          description: Missing or empty agent_id
+
   /v1/baselines:
     get:
       summary: List baselines
@@ -836,7 +924,7 @@ components:
       description: |
         Device tokens: device:ingest, device:read_config, device:read_interventions, device:write_feedback
         Agent tokens: agent:context:read, agent:briefing:read, agent:timeline:read, agent:events:read,
-                      agent:summaries:read, agent:observations:write, agent:interventions:write,
-                      agent:feedback:read, agent:goals:read, agent:goals:write, agent:habits:read,
-                      agent:habits:write, agent:outcomes:write
+                      agent:summaries:read, agent:observations:write, agent:interventions:read,
+                      agent:interventions:write, agent:feedback:read, agent:goals:read, agent:goals:write,
+                      agent:habits:read, agent:habits:write, agent:outcomes:write
         Admin tokens: admin
