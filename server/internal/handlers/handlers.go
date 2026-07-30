@@ -383,6 +383,7 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"timezone": queryParam(r, "timezone", "UTC"),
 		"timeline": resp,
 	})
 }
@@ -1379,8 +1380,8 @@ func (h *Handler) StreamContext(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 	h.sendContextEvent(w, flusher, uid, &lastETag)
 
-	// Poll for context changes every 5 seconds
-	ticker := time.NewTicker(5 * time.Second)
+	// Poll for context changes at configured interval
+	ticker := time.NewTicker(h.SSEPollInterval)
 	defer ticker.Stop()
 
 	for {

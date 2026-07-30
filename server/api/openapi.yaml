@@ -1079,3 +1079,296 @@ paths:
       responses:
         "200":
           description: Audit log entries
+
+  /v1/auth/rotate:
+    post:
+      summary: Rotate authentication token (§28)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_type:
+                  type: string
+                  enum: [device, agent]
+              required: [token_type]
+      responses:
+        "200":
+          description: New token issued, old token revoked
+
+  /v1/auth/revoke:
+    post:
+      summary: Revoke all tokens for user — kill switch (§28)
+      tags: [Auth]
+      responses:
+        "200":
+          description: All tokens revoked
+
+  /v1/metrics/work-patterns:
+    get:
+      summary: Compute work pattern analytics (§39)
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Work pattern metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_focus_minutes:
+                    type: number
+                  average_focus_bout_minutes:
+                    type: number
+                  context_switching_rate_per_hour:
+                    type: number
+                  deep_work_ratio:
+                    type: number
+                  fragmentation_score:
+                    type: number
+
+  /v1/metrics/readiness:
+    get:
+      summary: Compute readiness/fatigue score (§40)
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Readiness score with recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  readiness_score:
+                    type: number
+                  fatigue_probability:
+                    type: number
+                  confidence:
+                    type: number
+                  inputs:
+                    type: object
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+
+  /v1/health/collectors:
+    get:
+      summary: Per-collector health status (§23.5)
+      tags: [System]
+      responses:
+        "200":
+          description: Collector health with staleness
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_context_at:
+                    type: string
+                  staleness_seconds:
+                    type: integer
+                  collectors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        status:
+                          type: string
+                          enum: [healthy, degraded, stale, unknown]
+                        staleness_seconds:
+                          type: number
+
+  /v1/goals/{id}/progress:
+    get:
+      summary: Evaluate goal progress (§36)
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Goal progress assessment
+
+  /v1/habits/{id}/evaluation:
+    get:
+      summary: Evaluate habit adherence (§38)
+      tags: [Goals & Habits]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Habit evaluation with streak and strength
+
+  /v1/interventions/{id}/effectiveness:
+    get:
+      summary: Compute intervention effectiveness (§35)
+      tags: [Agent Loop]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Effectiveness score with component breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  intervention_id:
+                    type: string
+                  effectiveness_score:
+                    type: number
+                  rating:
+                    type: string
+                    enum: [highly_effective, moderately_effective, marginally_effective, no_effect]
+                  components:
+                    type: object
+                    properties:
+                      accepted:
+                        type: number
+                      behavior_change:
+                        type: number
+                      metric_improvement:
+                        type: number
+                      user_helpfulness:
+                        type: number
+
+  /v1/context/data-quality:
+    get:
+      summary: Data quality signals for current context (§11.4)
+      tags: [Context]
+      responses:
+        "200":
+          description: Data quality with completeness and staleness
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  completeness:
+                    type: number
+                  staleness_seconds:
+                    type: integer
+                  missing_collectors:
+                    type: array
+                    items:
+                      type: string
+                  degraded_collectors:
+                    type: array
+                    items:
+                      type: string
+                  permission_issues:
+                    type: array
+                    items:
+                      type: string
+                  clock_drift_detected:
+                    type: boolean
+
+  /v1/agents/{agent_id}/effectiveness:
+    get:
+      summary: Agent effectiveness score (§35)
+      tags: [Agent Loop]
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent effectiveness with delivery and acceptance rates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                  effectiveness_score:
+                    type: number
+                  delivery_rate:
+                    type: number
+                  acceptance_rate:
+                    type: number
+                  total_interventions:
+                    type: integer
+                  total_outcomes:
+                    type: integer
+
+  /v1/analytics/insights:
+    get:
+      summary: Cross-domain analytics insights (§20)
+      tags: [Analytics]
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1d, 7d, 30d]
+            default: 7d
+      responses:
+        "200":
+          description: Analytics insights with focus, habits, goals, interventions
+
+  /v1/export/daily:
+    get:
+      summary: Export all data for a day (§27)
+      tags: [Export]
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+      responses:
+        "200":
+          description: Daily export bundle
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/export/weekly:
+    get:
+      summary: Export all data for a week (§27)
+      tags: [Export]
+      parameters:
+        - name: week
+          in: query
+          schema:
+            type: string
+          description: Week in YYYY-WXX format
+      responses:
+        "200":
+          description: Weekly export bundle
+          content:
+            application/json:
+              schema:
+                type: object
