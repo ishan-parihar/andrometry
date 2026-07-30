@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/andrometry/server/internal/db"
-	"github.com/andrometry/server/internal/models"
 )
 
 func setupTestDB(t *testing.T) *db.DB {
@@ -273,5 +272,3 @@ func splitScopes(scopes string) []string {
 	return result
 }
 
-// Ensure models is imported for potential future use
-var _ = models.AuthToken{}

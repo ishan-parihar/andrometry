@@ -90,7 +90,7 @@ func TestTimelineSegment_Fields(t *testing.T) {
 	}
 }
 
-func testTimelineSegmentJSON(t *testing.T) {
+func TestTimelineSegment_JSON(t *testing.T) {
 	s := TimelineSegment{
 		SegmentID:   "seg-1",
 		SegmentType: "focus_segment",
