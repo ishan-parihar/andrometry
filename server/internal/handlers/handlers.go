@@ -293,14 +293,18 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
 		}
 
-		// Auto-generate weekly summary if we now have enough daily summaries for the week
+		// Auto-generate weekly summary if enough daily summaries exist and no weekly exists yet
 		if t, err := time.Parse("2006-01-02", segDate); err == nil {
 			year, week := t.ISOWeek()
 			weekStr := fmt.Sprintf("%d-W%02d", year, week)
-			dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
-			if countErr == nil && dailyCount >= 3 {
-				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
-					log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
+			// Only generate if no weekly summary exists yet for this week
+			existingWeekly, weeklyErr := h.DB.GetWeeklySummary(uid, weekStr)
+			if weeklyErr != nil || existingWeekly == nil {
+				dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
+				if countErr == nil && dailyCount >= 5 {
+					if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
+						log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
+					}
 				}
 			}
 		}
