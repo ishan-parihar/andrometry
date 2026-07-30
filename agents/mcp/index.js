@@ -1045,6 +1045,198 @@ server.tool(
 );
 
 // ============================================================
+// Convenience Segment Tools (§18.1)
+// ============================================================
+
+server.tool(
+  "get_activity_segments",
+  "Get activity segments from the timeline",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("segment_type", "activity_segment");
+    const data = await relayFetch(`/v1/timeline?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_communication_segments",
+  "Get communication segments — calls, messages, email, chat",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("segment_type", "communication_segment");
+    const data = await relayFetch(`/v1/timeline?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_sleep_segments",
+  "Get sleep segments from the timeline",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+  },
+  async ({ from, to }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("segment_type", "sleep_segment");
+    const data = await relayFetch(`/v1/timeline?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_app_usage",
+  "Get app usage summary events",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+    limit: z.number().optional().describe("Max events (default 50)"),
+  },
+  async ({ from, to, limit }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("event_type", "app_usage_summary");
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/events?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_notification_load",
+  "Get notification events to assess notification load",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+    limit: z.number().optional().describe("Max events (default 50)"),
+  },
+  async ({ from, to, limit }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("event_type", "notification_received");
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/events?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_health_summary_events",
+  "Get health data events (steps, heart rate, sleep)",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+    limit: z.number().optional().describe("Max events (default 50)"),
+  },
+  async ({ from, to, limit }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("event_type", "health_data");
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/events?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_sleep_summary_events",
+  "Get sleep summary events",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+    limit: z.number().optional().describe("Max events (default 50)"),
+  },
+  async ({ from, to, limit }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("event_type", "sleep_summary");
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/events?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_calendar_context_events",
+  "Get calendar events for context",
+  {
+    from: z.string().optional().describe("Start time (ISO 8601)"),
+    to: z.string().optional().describe("End time (ISO 8601)"),
+    limit: z.number().optional().describe("Max events (default 50)"),
+  },
+  async ({ from, to, limit }) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    params.set("event_type", "calendar_event");
+    if (limit) params.set("limit", String(limit));
+    const data = await relayFetch(`/v1/events?${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_data_quality",
+  "Get data quality signals — completeness, staleness, missing collectors",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/context/data-quality");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_agent_effectiveness",
+  "Get agent effectiveness score — delivery rate, acceptance rate, behavior change rate",
+  {
+    agent_id: z.string().describe("Agent identifier to evaluate"),
+  },
+  async ({ agent_id }) => {
+    const data = await relayFetch(`/v1/agents/${encodeURIComponent(agent_id)}/effectiveness`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_habit_metrics",
+  "Get habit metrics — streaks, habit strength, completion rates",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/habits");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "get_baseline_comparison",
+  "Get baseline metrics for comparison with current performance",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/baselines");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 

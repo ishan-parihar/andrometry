@@ -661,6 +661,35 @@ func (db *DB) CountInterventionsToday(userID string) (int, error) {
 	return count, err
 }
 
+// GetInterventionsByAgent retrieves interventions for a specific agent within a user.
+func (db *DB) GetInterventionsByAgent(userID, agentID string, limit int) ([]models.Intervention, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := db.Query(`
+		SELECT intervention_id, user_id, timestamp, agent_id, intervention_type, status, payload, created_at, updated_at
+		FROM interventions
+		WHERE user_id = ? AND agent_id = ?
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, userID, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var interventions []models.Intervention
+	for rows.Next() {
+		var i models.Intervention
+		err := rows.Scan(&i.InterventionID, &i.UserID, &i.Timestamp, &i.AgentID, &i.InterventionType, &i.Status, &i.Payload, &i.CreatedAt, &i.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		interventions = append(interventions, i)
+	}
+	return interventions, nil
+}
+
 // GetInterventionsByDateRange retrieves interventions for a user within a time range.
 func (db *DB) GetInterventionsByDateRange(userID, from, to string, limit int) ([]models.Intervention, error) {
 	if limit <= 0 {

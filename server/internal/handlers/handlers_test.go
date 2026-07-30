@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
@@ -1304,6 +1306,168 @@ func TestPostTokenRevoke(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["status"] != "all_tokens_revoked" {
 		t.Errorf("status = %v, want all_tokens_revoked", resp["status"])
+	}
+}
+
+// --- Data Quality tests (§11.4) ---
+
+func TestGetDataQuality_noContext(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/context/data-quality", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetDataQuality(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["completeness"] != 0.0 {
+		t.Errorf("completeness = %v, want 0.0", resp["completeness"])
+	}
+	if resp["message"] != "no context available" {
+		t.Errorf("message = %v, want no context available", resp["message"])
+	}
+}
+
+func TestGetDataQuality_withContext(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Insert a fresh context
+	h.DB.UpsertContext(&models.CurrentContext{
+		DeviceID:  "pixel-9",
+		UserID:    "primary",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Timezone:  "UTC",
+		Context:   `{"primary_activity":"deep_work"}`,
+		ETag:      "fresh-etag",
+	})
+
+	req := httptest.NewRequest("GET", "/v1/context/data-quality", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetDataQuality(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["completeness"].(float64) < 0.5 {
+		t.Errorf("completeness = %v, want >= 0.5 for fresh context", resp["completeness"])
+	}
+	if resp["etag"] != "fresh-etag" {
+		t.Errorf("etag = %v, want fresh-etag", resp["etag"])
+	}
+}
+
+// --- Agent Effectiveness tests (§35) ---
+
+func TestGetAgentEffectiveness_emptyAgent(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/agents//effectiveness", nil)
+	req.SetPathValue("agent_id", "")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetAgentEffectiveness(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestGetAgentEffectiveness_noData(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/agents/coach/effectiveness", nil)
+	req.SetPathValue("agent_id", "coach")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetAgentEffectiveness(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["agent_id"] != "coach" {
+		t.Errorf("agent_id = %v, want coach", resp["agent_id"])
+	}
+	if resp["effectiveness_score"] != 0.0 {
+		t.Errorf("effectiveness_score = %v, want 0.0 for no data", resp["effectiveness_score"])
+	}
+}
+
+func TestGetAgentEffectiveness_withInterventions(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Insert interventions for this agent
+	for i := 0; i < 5; i++ {
+		status := "approved_by_policy"
+		if i < 3 {
+			status = "delivered"
+		}
+		_ = h.DB.InsertIntervention(&models.Intervention{
+			InterventionID:   fmt.Sprintf("int-%d", i),
+			UserID:           "primary",
+			Timestamp:        "2026-01-01T10:00:00Z",
+			AgentID:          "coach",
+			InterventionType: "nudge",
+			Status:           status,
+			Payload:          `{}`,
+		})
+	}
+
+	// Insert outcomes
+	score := 0.75
+	for i := 0; i < 3; i++ {
+		_ = h.DB.InsertOutcome(&models.Outcome{
+			OutcomeID:          fmt.Sprintf("out-%d", i),
+			UserID:             "primary",
+			InterventionID:     fmt.Sprintf("int-%d", i),
+			Timestamp:          "2026-01-01T10:05:00Z",
+			OutcomeType:        "accepted",
+			EffectivenessScore: &score,
+			Payload:            `{}`,
+		})
+	}
+
+	req := httptest.NewRequest("GET", "/v1/agents/coach/effectiveness", nil)
+	req.SetPathValue("agent_id", "coach")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetAgentEffectiveness(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["agent_id"] != "coach" {
+		t.Errorf("agent_id = %v, want coach", resp["agent_id"])
+	}
+
+	deliveryRate := resp["delivery_rate"].(float64)
+	if deliveryRate != 0.6 {
+		t.Errorf("delivery_rate = %v, want 0.6 (3/5)", deliveryRate)
+	}
+
+	acceptanceRate := resp["acceptance_rate"].(float64)
+	if acceptanceRate != 1.0 {
+		t.Errorf("acceptance_rate = %v, want 1.0 (3/3)", acceptanceRate)
+	}
+
+	// effectiveness_score = 0.30*0.6 + 0.35*1.0 + 0.35*0.75 = 0.18+0.35+0.2625 = 0.7925
+	es := resp["effectiveness_score"].(float64)
+	if es < 0.75 || es > 0.85 {
+		t.Errorf("effectiveness_score = %v, want ~0.79", es)
 	}
 }
 

@@ -145,6 +145,12 @@ func main() {
 	mux.Handle("GET /v1/export/daily", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.ExportDaily))))
 	mux.Handle("GET /v1/export/weekly", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.ExportWeekly))))
 
+	// Data Quality (§11.4)
+	mux.Handle("GET /v1/context/data-quality", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetDataQuality))))
+
+	// Agent Effectiveness (§35)
+	mux.Handle("GET /v1/agents/{agent_id}/effectiveness", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.GetAgentEffectiveness))))
+
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
 	mux.Handle("POST /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.SetSensitiveMode))))
