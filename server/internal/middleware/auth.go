@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -67,7 +68,7 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 			}
 
 			if !db.HasScope(scopes, scope) {
-				http.Error(w, `{"error":"insufficient scope: "+`+scope+`}`, http.StatusForbidden)
+				http.Error(w, fmt.Sprintf(`{"error":"insufficient scope: %s"}`, scope), http.StatusForbidden)
 				return
 			}
 
@@ -93,7 +94,7 @@ func RequireAnyScope(scopes ...string) func(http.Handler) http.Handler {
 				}
 			}
 
-			http.Error(w, `{"error":"insufficient scope: requires one of `+strings.Join(scopes, ", ")+`"}`, http.StatusForbidden)
+			http.Error(w, fmt.Sprintf(`{"error":"insufficient scope: requires one of %s"}`, strings.Join(scopes, ", ")), http.StatusForbidden)
 		})
 	}
 }

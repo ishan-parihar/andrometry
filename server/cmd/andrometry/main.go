@@ -228,9 +228,7 @@ func main() {
 	}
 
 	// Periodic retention enforcement every 24 hours
-	retentionDone := make(chan struct{})
 	go func() {
-		defer close(retentionDone)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {

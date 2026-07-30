@@ -888,7 +888,6 @@ func (h *Handler) PostGoal(w http.ResponseWriter, r *http.Request) {
 		goal.Status = "active"
 	}
 
-	targetBytes, _ := json.Marshal(goal.Target)
 	payloadBytes, _ := json.Marshal(map[string]interface{}{
 		"title":  goal.Title,
 		"target": goal.Target,
@@ -905,7 +904,6 @@ func (h *Handler) PostGoal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, "failed to insert goal")
 		return
 	}
-	_ = targetBytes
 
 	audit.Log(h.DB, uid, actorType(r), actorID(r), "create_goal", "goal", goal.GoalID, "")
 	respondJSON(w, http.StatusCreated, map[string]string{"goal_id": goal.GoalID, "status": "created"})

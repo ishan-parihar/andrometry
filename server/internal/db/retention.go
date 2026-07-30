@@ -116,6 +116,15 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		}
 	}
 
+	// Prune user_feedback (>180 days) — kept longer than observations
+	feedbackCutoff := time.Now().AddDate(0, 0, -180).Format("2006-01-02T15:04:05Z")
+	if result, err := db.Exec("DELETE FROM user_feedback WHERE created_at < ?", feedbackCutoff); err == nil {
+		if rows, _ := result.RowsAffected(); rows > 0 {
+			log.Printf("[retention] pruned %d user feedback entries", rows)
+			pruned += int(rows)
+		}
+	}
+
 	if policy.AuditLogDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.AuditLogDays).Format("2006-01-02T15:04:05Z")
 		if result, err := db.Exec("DELETE FROM audit_log WHERE created_at < ?", cutoff); err == nil {
