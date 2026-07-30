@@ -7,3 +7,13 @@ android/app/build/
 android/local.properties
 android/gradle/wrapper/gradle-wrapper.jar
 android/gradlew.bat
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+andrometry.db*
+
+# Server data directory
+server/data/
+/var/lib/andrometry/
