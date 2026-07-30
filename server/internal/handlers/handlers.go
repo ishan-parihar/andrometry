@@ -277,10 +277,10 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto-generate daily summary from segments if segments were ingested
-	tz := "UTC"
+	batchTz := "UTC"
 	if len(batch.Context) > 0 {
 		if t, ok := batch.Context["timezone"].(string); ok && t != "" {
-			tz = t
+			batchTz = t
 		}
 	}
 
@@ -290,21 +290,22 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		if startTime, ok := batch.Segments[0]["start_time"].(string); ok && len(startTime) >= 10 {
 			segDate = startTime[:10]
 		}
-		if err := h.Summarizer.GenerateDailySummary(uid, segDate, tz); err != nil {
+		if err := h.Summarizer.GenerateDailySummary(uid, segDate, batchTz); err != nil {
 			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
 		}
 	}
 
 	// Auto-generate weekly summary if enough daily summaries exist and no weekly exists yet
-	// This runs on every batch (not just segment ingestion) to handle direct summary uploads
+	// Uses current date for the week check, not the batch date, to target the current week
 	if t, err := time.Parse("2006-01-02", time.Now().UTC().Format("2006-01-02")); err == nil {
 		year, week := t.ISOWeek()
 		weekStr := fmt.Sprintf("%d-W%02d", year, week)
 		existingWeekly, weeklyErr := h.DB.GetWeeklySummary(uid, weekStr)
 		if weeklyErr != nil || existingWeekly == nil {
+			// No weekly summary exists yet — generate if enough daily summaries are present
 			dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
 			if countErr == nil && dailyCount >= 5 {
-				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
+				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, batchTz); err != nil {
 					log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
 				}
 			}
