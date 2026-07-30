@@ -65,9 +65,17 @@ type WeeklySummaryData struct {
 
 // GenerateDailySummary computes a daily summary from segments for a given date and user.
 func (sg *SummaryGenerator) GenerateDailySummary(userID, date, timezone string) error {
-	// Query segments for the day
-	from := date + "T00:00:00Z"
-	to := date + "T23:59:59Z"
+	// Compute UTC range that covers the local date in the user's timezone.
+	// This ensures we capture all segments that occurred during the local date,
+	// regardless of their timestamp offset.
+	loc, err := time.LoadLocation(timezone)
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+	localStart, _ := time.ParseInLocation("2006-01-02", date, loc)
+	localEnd := localStart.Add(24*time.Hour - time.Second)
+	from := localStart.UTC().Format(time.RFC3339)
+	to := localEnd.UTC().Format(time.RFC3339)
 
 	segments, err := sg.db.GetTimeline(userID, from, to, 10000, "")
 	if err != nil {

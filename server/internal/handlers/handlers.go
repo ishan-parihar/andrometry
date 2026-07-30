@@ -278,14 +278,20 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-generate daily summary from segments if segments were ingested
 	if acceptedSegments > 0 && len(batch.Segments) > 0 {
-		date := time.Now().UTC().Format("2006-01-02")
+		// Extract date from first segment's timestamp (handles late syncs correctly)
+		segDate := time.Now().UTC().Format("2006-01-02")
+		if startTime, ok := batch.Segments[0]["start_time"].(string); ok && len(startTime) >= 10 {
+			segDate = startTime[:10]
+		}
 		tz := "UTC"
 		if len(batch.Context) > 0 {
 			if t, ok := batch.Context["timezone"].(string); ok && t != "" {
 				tz = t
 			}
 		}
-		_ = h.Summarizer.GenerateDailySummary(uid, date, tz)
+		if err := h.Summarizer.GenerateDailySummary(uid, segDate, tz); err != nil {
+			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
+		}
 	}
 
 	// Gap detection — find missing sequences
