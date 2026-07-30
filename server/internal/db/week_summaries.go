@@ -43,11 +43,10 @@ func weekDateRange(year, week int) (string, string) {
 func isoWeekStart(year, week int) time.Time {
 	// January 4 is always in week 1. Find the Monday of week 1.
 	jan4 := time.Date(year, 1, 4, 0, 0, 0, 0, time.UTC)
-	weekday := jan4.Weekday()
-	if weekday == time.Sunday {
-		weekday = 7
+	weekday := int(jan4.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday = 7
 	}
-	week1Monday := jan4.AddDate(0, 0, -int(weekday-time.Monday))
-	// Add (week-1) * 7 days to get the Monday of the target week
+	week1Monday := jan4.AddDate(0, 0, -weekday+1) // Monday of week 1
 	return week1Monday.AddDate(0, 0, (week-1)*7)
 }

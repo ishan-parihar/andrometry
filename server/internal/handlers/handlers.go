@@ -25,6 +25,7 @@ type Handler struct {
 	DB              *db.DB
 	Policy          governor.Policy
 	Rotator         *auth.TokenRotation
+	Summarizer      *db.SummaryGenerator
 	MaxBatchEvents  int
 	MaxBatchSegments  int
 	MaxBatchSummaries int
@@ -37,6 +38,7 @@ func NewHandler(database *db.DB) *Handler {
 		DB:                database,
 		Policy:            governor.DefaultPolicy(),
 		Rotator:           auth.NewTokenRotation(database, 30),
+		Summarizer:        db.NewSummaryGenerator(database),
 		MaxBatchEvents:    500,
 		MaxBatchSegments:  100,
 		MaxBatchSummaries: 50,
@@ -272,6 +274,18 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 			}
 			acceptedSummaries++
 		}
+	}
+
+	// Auto-generate daily summary from segments if segments were ingested
+	if acceptedSegments > 0 && len(batch.Segments) > 0 {
+		date := time.Now().UTC().Format("2006-01-02")
+		tz := "UTC"
+		if len(batch.Context) > 0 {
+			if t, ok := batch.Context["timezone"].(string); ok && t != "" {
+				tz = t
+			}
+		}
+		_ = h.Summarizer.GenerateDailySummary(uid, date, tz)
 	}
 
 	// Gap detection — find missing sequences
