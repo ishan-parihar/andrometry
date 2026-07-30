@@ -300,14 +300,32 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 	if t, err := time.Parse("2006-01-02", time.Now().UTC().Format("2006-01-02")); err == nil {
 		year, week := t.ISOWeek()
 		weekStr := fmt.Sprintf("%d-W%02d", year, week)
+
+		// Check if a weekly summary already exists
 		existingWeekly, weeklyErr := h.DB.GetWeeklySummary(uid, weekStr)
+		needsGeneration := false
+
 		if weeklyErr != nil || existingWeekly == nil {
 			// No weekly summary exists yet — generate if enough daily summaries are present
 			dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
 			if countErr == nil && dailyCount >= 5 {
-				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, batchTz); err != nil {
-					log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
+				needsGeneration = true
+			}
+		} else {
+			// Weekly summary exists — regenerate if it's stale (latest daily summary is newer)
+			latestDaily, latestErr := h.DB.GetLatestDailySummaryForWeek(uid, year, week)
+			if latestErr == nil && latestDaily != nil {
+				weeklyTime, _ := time.Parse(time.RFC3339, existingWeekly.UpdatedAt)
+				dailyTime, _ := time.Parse(time.RFC3339, latestDaily.UpdatedAt)
+				if dailyTime.After(weeklyTime) {
+					needsGeneration = true
 				}
+			}
+		}
+
+		if needsGeneration {
+			if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, batchTz); err != nil {
+				log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
 			}
 		}
 	}

@@ -47,6 +47,22 @@ func (db *DB) CountDailySummariesForWeek(userID string, year, week int) (int, er
 	return count, err
 }
 
+// GetLatestDailySummaryForWeek returns the most recently updated daily summary for a given ISO week.
+func (db *DB) GetLatestDailySummaryForWeek(userID string, year, week int) (*models.DailySummary, error) {
+	startDate, endDate := weekDateRange(year, week)
+	var s models.DailySummary
+	err := db.QueryRow(`
+		SELECT user_id, date, timezone, summary, version, updated_at
+		FROM daily_summary
+		WHERE user_id = ? AND date >= ? AND date <= ?
+		ORDER BY updated_at DESC LIMIT 1
+	`, userID, startDate, endDate).Scan(&s.UserID, &s.Date, &s.Timezone, &s.Summary, &s.Version, &s.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 // isoWeekStart returns the Monday of the given ISO week.
 func isoWeekStart(year, week int) time.Time {
 	// January 4 is always in week 1. Find the Monday of week 1.
