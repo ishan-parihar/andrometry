@@ -173,8 +173,9 @@ func main() {
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
 	// Token rotation and revocation (§28)
-	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRotation))))
-	mux.Handle("POST /v1/auth/revoke", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRevoke))))
+	// Accepts both device:ingest and agent:interventions:write scopes
+	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireAnyScope("device:ingest", "agent:interventions:write")(http.HandlerFunc(h.PostTokenRotation))))
+	mux.Handle("POST /v1/auth/revoke", auth(middleware.RequireAnyScope("device:ingest", "agent:interventions:write")(http.HandlerFunc(h.PostTokenRevoke))))
 
 	// SSE stream for real-time context updates (§21)
 	if cfg.SSEEnabled {

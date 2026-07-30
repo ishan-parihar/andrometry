@@ -76,6 +76,28 @@ func RequireScope(scope string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireAnyScope checks that the request's token has at least one of the required scopes.
+func RequireAnyScope(scopes ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tokenScopes, ok := r.Context().Value(ScopesKey).(string)
+			if !ok {
+				http.Error(w, `{"error":"no scopes found"}`, http.StatusForbidden)
+				return
+			}
+
+			for _, required := range scopes {
+				if db.HasScope(tokenScopes, required) {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			http.Error(w, `{"error":"insufficient scope: requires one of `+strings.Join(scopes, ", ")+`"}`, http.StatusForbidden)
+		})
+	}
+}
+
 // CORS adds permissive CORS headers for development.
 func CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
