@@ -1336,13 +1336,13 @@ func TestGetDataQuality_noContext(t *testing.T) {
 func TestGetDataQuality_withContext(t *testing.T) {
 	h, _ := setupTestHandler(t)
 
-	// Insert a fresh context
+	// Insert a fresh context with collector data for completeness calculation
 	h.DB.UpsertContext(&models.CurrentContext{
 		DeviceID:  "pixel-9",
 		UserID:    "primary",
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Timezone:  "UTC",
-		Context:   `{"primary_activity":"deep_work"}`,
+		Context:   `{"primary_activity":"deep_work","app_usage_summary":{},"notification_summary":{},"health_data":{},"place":"office","calendar_events":[],"communication_summary":{}}`,
 		ETag:      "fresh-etag",
 	})
 
@@ -1357,8 +1357,9 @@ func TestGetDataQuality_withContext(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["completeness"].(float64) < 0.5 {
-		t.Errorf("completeness = %v, want >= 0.5 for fresh context", resp["completeness"])
+	completeness := resp["completeness"].(float64)
+	if completeness < 0.9 {
+		t.Errorf("completeness = %v, want >= 0.9 for fresh context with all collectors", completeness)
 	}
 	if resp["etag"] != "fresh-etag" {
 		t.Errorf("etag = %v, want fresh-etag", resp["etag"])

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/andrometry/server/internal/models"
 )
@@ -103,5 +104,6 @@ func (h *Handler) GetAgentEffectiveness(w http.ResponseWriter, r *http.Request) 
 		"behavior_change_count": behaviorChangeCount,
 		"acceptance_rate":       acceptanceRate,
 		"avg_effectiveness":     avgEffectiveness,
+		"computed_at":           time.Now().UTC().Format(time.RFC3339),
 	})
 }

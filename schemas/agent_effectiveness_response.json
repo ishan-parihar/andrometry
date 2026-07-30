@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://andrometry.dev/schemas/agent_effectiveness_response.json",
+  "title": "Agent Effectiveness Response",
+  "description": "Response from GET /v1/agents/:agent_id/effectiveness (§35)",
+  "type": "object",
+  "required": ["agent_id", "effectiveness_score", "total_interventions", "delivery_rate", "total_outcomes", "acceptance_rate", "avg_effectiveness", "computed_at"],
+  "properties": {
+    "agent_id": { "type": "string", "description": "Agent identifier" },
+    "effectiveness_score": { "type": "number", "minimum": 0, "maximum": 1, "description": "Weighted effectiveness: 0.30*delivery + 0.35*acceptance + 0.35*avg_effectiveness" },
+    "total_interventions": { "type": "integer", "minimum": 0, "description": "Total interventions by this agent" },
+    "approved_count": { "type": "integer", "minimum": 0 },
+    "delivered_count": { "type": "integer", "minimum": 0 },
+    "delivery_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "total_outcomes": { "type": "integer", "minimum": 0 },
+    "accepted_count": { "type": "integer", "minimum": 0 },
+    "behavior_change_count": { "type": "integer", "minimum": 0 },
+    "acceptance_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "avg_effectiveness": { "type": "number", "minimum": 0, "maximum": 1 },
+    "computed_at": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp when score was computed" }
+  },
+  "additionalProperties": false
+}
