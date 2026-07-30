@@ -220,6 +220,25 @@ func generateFromMap(m map[string]interface{}, briefingID string) *Briefing {
 		}
 	}
 
+	// Compute probabilities from signals if not provided
+	distractionProb := getFloat64(contextMap, "distraction_probability")
+	fatigueProb := getFloat64(contextMap, "fatigue_probability")
+	alignmentProb := getFloat64(contextMap, "alignment_probability")
+	readinessScore := getFloat64(contextMap, "readiness_score")
+
+	if distractionProb == 0 {
+		distractionProb = computeDistractionProb(contextMap)
+	}
+	if fatigueProb == 0 {
+		fatigueProb = computeFatigueProb(contextMap)
+	}
+	if alignmentProb == 0 {
+		alignmentProb = computeAlignmentProb(contextMap)
+	}
+	if readinessScore == 0 {
+		readinessScore = computeReadinessScore(fatigueProb, contextMap)
+	}
+
 	b := &Briefing{
 		BriefingID:  briefingID,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
@@ -227,16 +246,100 @@ func generateFromMap(m map[string]interface{}, briefingID string) *Briefing {
 			PrimaryActivity:         getString(contextMap, "primary_activity", "unknown"),
 			Place:                   getString(contextMap, "place", "unknown"),
 			FocusActive:             getBool(contextMap, "focus_active"),
-			DistractionProbability:  getFloat64(contextMap, "distraction_probability"),
-			FatigueProbability:      getFloat64(contextMap, "fatigue_probability"),
-			AlignmentProbability:    getFloat64(contextMap, "alignment_probability"),
-			ReadinessScore:          getFloat64(contextMap, "readiness_score"),
+			DistractionProbability:  distractionProb,
+			FatigueProbability:      fatigueProb,
+			AlignmentProbability:    alignmentProb,
+			ReadinessScore:          readinessScore,
 		},
 		Risks:            detectRisks(contextMap),
 		Opportunities:    detectOpportunities(contextMap),
 		SuggestedQueries: []string{"get_current_context", "get_daily_summary"},
 	}
 	return b
+}
+
+// computeDistractionProb estimates distraction from app switches, notifications, and category.
+func computeDistractionProb(ctx map[string]interface{}) float64 {
+	prob := 0.1
+	appCategory := getString(ctx, "foreground_app_category", "unknown")
+	if appCategory == "social" {
+		prob += 0.3
+	} else if appCategory == "entertainment" {
+		prob += 0.2
+	}
+	// Notifications increase distraction
+	notifRate := getString(ctx, "interruption_rate", "none")
+	switch notifRate {
+	case "high":
+		prob += 0.2
+	case "medium":
+		prob += 0.1
+	}
+	// Focus active reduces distraction
+	if getBool(ctx, "focus_active") {
+		prob *= 0.7
+	}
+	return clamp01(prob)
+}
+
+// computeFatigueProb estimates fatigue from time of day and sleep info.
+func computeFatigueProb(ctx map[string]interface{}) float64 {
+	hour := time.Now().UTC().Hour()
+	// Base fatigue from circadian rhythm
+	var baseFatigue float64
+	switch {
+	case hour >= 0 && hour <= 5:
+		baseFatigue = 0.7
+	case hour >= 6 && hour <= 7:
+		baseFatigue = 0.4
+	case hour >= 8 && hour <= 11:
+		baseFatigue = 0.2
+	case hour >= 12 && hour <= 13:
+		baseFatigue = 0.35 // post-lunch dip
+	case hour >= 14 && hour <= 17:
+		baseFatigue = 0.25
+	case hour >= 18 && hour <= 20:
+		baseFatigue = 0.35
+	case hour >= 21 && hour <= 22:
+		baseFatigue = 0.5
+	default:
+		baseFatigue = 0.65
+	}
+	return clamp01(baseFatigue)
+}
+
+// computeAlignmentProb estimates alignment from focus and app category.
+func computeAlignmentProb(ctx map[string]interface{}) float64 {
+	alignment := 0.5
+	if getBool(ctx, "focus_active") {
+		alignment += 0.3
+	}
+	appCategory := getString(ctx, "foreground_app_category", "unknown")
+	switch appCategory {
+	case "productivity", "education", "email", "calendar":
+		alignment += 0.15
+	case "social", "entertainment":
+		alignment -= 0.2
+	}
+	return clamp01(alignment)
+}
+
+// computeReadinessScore estimates readiness from fatigue and other signals.
+func computeReadinessScore(fatigueProb float64, ctx map[string]interface{}) float64 {
+	fatigueComponent := (1.0 - fatigueProb) * 0.5
+	readiness := 0.3 + fatigueComponent // base 0.3 + fatigue contribution
+	return clamp01(readiness)
+}
+
+// clamp01 clamps a float64 to [0, 1].
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 func getString(m map[string]interface{}, key, fallback string) string {

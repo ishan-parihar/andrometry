@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -36,41 +37,65 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 }
 
 // PutPreferences handles PUT /v1/preferences — upserts one or more preferences.
+// Supports two formats:
+// 1. Array format: {"preferences": [{"category":"x","key":"y","value":"z"}]}
+// 2. Category+map format: {"category":"x", "preferences": {"key1":"val1", "key2":"val2"}}
 func (h *Handler) PutPreferences(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
 
 	body, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 
-	var req struct {
+	// Try array format first
+	var reqArray struct {
 		Preferences []struct {
 			Category string `json:"category"`
 			Key      string `json:"key"`
 			Value    string `json:"value"`
 		} `json:"preferences"`
 	}
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := json.Unmarshal(body, &reqArray); err == nil && len(reqArray.Preferences) > 0 {
+		updated := 0
+		for _, p := range reqArray.Preferences {
+			if p.Category == "" || p.Key == "" {
+				continue
+			}
+			if err := h.DB.UpsertPreference(uid, p.Category, p.Key, p.Value); err != nil {
+				continue
+			}
+			updated++
+		}
+		audit.Log(h.DB, uid, actorType(r), actorID(r), "update_preferences", "preferences", "",
+			`{"updated":`+strconv.Itoa(updated)+`}`)
+		respondJSON(w, http.StatusOK, map[string]interface{}{"status": "updated", "updated": updated})
+		return
+	}
+
+	// Try category+map format
+	var reqMap struct {
+		Category    string                 `json:"category"`
+		Preferences map[string]interface{} `json:"preferences"`
+	}
+	if err := json.Unmarshal(body, &reqMap); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
 
-	if len(req.Preferences) == 0 {
-		respondError(w, http.StatusBadRequest, "preferences array is required")
+	if reqMap.Category == "" {
+		respondError(w, http.StatusBadRequest, "category is required")
 		return
 	}
 
 	updated := 0
-	for _, p := range req.Preferences {
-		if p.Category == "" || p.Key == "" {
-			continue
-		}
-		if err := h.DB.UpsertPreference(uid, p.Category, p.Key, p.Value); err != nil {
+	for key, val := range reqMap.Preferences {
+		valueStr := fmt.Sprintf("%v", val)
+		if err := h.DB.UpsertPreference(uid, reqMap.Category, key, valueStr); err != nil {
 			continue
 		}
 		updated++
 	}
 
-	audit.Log(h.DB, uid, actorType(r), actorID(r), "update_preferences", "preferences", "",
+	audit.Log(h.DB, uid, actorType(r), actorID(r), "update_preferences", "preferences", reqMap.Category,
 		`{"updated":`+strconv.Itoa(updated)+`}`)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{

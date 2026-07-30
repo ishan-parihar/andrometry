@@ -144,13 +144,13 @@ func main() {
 
 	// Goals
 	mux.Handle("GET /v1/goals", auth(middleware.RequireScope("agent:goals:read")(http.HandlerFunc(h.GetGoals))))
-	mux.Handle("POST /v1/goals", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostGoal))))
+	mux.Handle("POST /v1/goals", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.PostGoalV2))))
 	mux.Handle("PATCH /v1/goals/{id}", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.UpdateGoal))))
 	mux.Handle("DELETE /v1/goals/{id}", auth(middleware.RequireScope("agent:goals:write")(http.HandlerFunc(h.DeleteGoal))))
 
 	// Habits
 	mux.Handle("GET /v1/habits", auth(middleware.RequireScope("agent:habits:read")(http.HandlerFunc(h.GetHabits))))
-	mux.Handle("POST /v1/habits", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.PostHabit))))
+	mux.Handle("POST /v1/habits", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.PostHabitV2))))
 	mux.Handle("PATCH /v1/habits/{id}", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.UpdateHabit))))
 	mux.Handle("DELETE /v1/habits/{id}", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.DeleteHabit))))
 	mux.Handle("POST /v1/habits/{id}/streak", auth(middleware.RequireScope("agent:habits:write")(http.HandlerFunc(h.UpdateHabitStreak))))
