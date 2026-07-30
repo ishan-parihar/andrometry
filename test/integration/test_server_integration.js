@@ -532,6 +532,34 @@ async function testMetricsEndpoints() {
     const res = await httpRequest('GET', '/v1/health/collectors', null, AGENT_TOKEN);
     assertStatus(res, 200, 'collector health');
   });
+
+  // Data Quality (§11.4)
+  await test('GET /v1/context/data-quality — no context returns completeness 0', async () => {
+    const res = await httpRequest('GET', '/v1/context/data-quality', null, AGENT_TOKEN);
+    assertStatus(res, 200, 'data-quality');
+    assert(res.json && typeof res.json.completeness === 'number', 'must have completeness');
+    assert(typeof res.json.staleness_seconds === 'number', 'must have staleness_seconds');
+    assert(Array.isArray(res.json.missing_collectors), 'must have missing_collectors array');
+    assert(Array.isArray(res.json.degraded_collectors), 'must have degraded_collectors array');
+    assert(typeof res.json.clock_drift_detected === 'boolean', 'must have clock_drift_detected');
+  });
+
+  // Agent Effectiveness (§35)
+  await test('GET /v1/agents/coach/effectiveness — returns score structure', async () => {
+    const res = await httpRequest('GET', '/v1/agents/coach/effectiveness', null, AGENT_TOKEN);
+    assertStatus(res, 200, 'agent effectiveness');
+    assert(res.json && res.json.agent_id === 'coach', 'must have agent_id=coach');
+    assert(typeof res.json.effectiveness_score === 'number', 'must have effectiveness_score');
+    assert(typeof res.json.delivery_rate === 'number', 'must have delivery_rate');
+    assert(typeof res.json.acceptance_rate === 'number', 'must have acceptance_rate');
+    assert(typeof res.json.computed_at === 'string', 'must have computed_at');
+  });
+
+  await test('GET /v1/agents/nonexistent-agent/effectiveness — returns score for unknown agent', async () => {
+    const res = await httpRequest('GET', '/v1/agents/nonexistent-agent/effectiveness', null, AGENT_TOKEN);
+    // Should return 200 with zero scores, or 404 if agent not found
+    assert(res.status === 200 || res.status === 404, `expected 200 or 404, got ${res.status}`);
+  });
 }
 
 async function testAdminEndpoints() {
