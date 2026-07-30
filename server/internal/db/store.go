@@ -719,6 +719,50 @@ func (db *DB) GetInterventionsByDateRange(userID, from, to string, limit int) ([
 	return interventions, nil
 }
 
+// GetOutcomesByInterventionIDs retrieves outcomes for multiple intervention IDs in a single query (avoids N+1).
+func (db *DB) GetOutcomesByInterventionIDs(userID string, interventionIDs []string, limit int) ([]models.Outcome, error) {
+	if len(interventionIDs) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+
+	// Build IN clause safely with numbered placeholders
+	query := `
+		SELECT outcome_id, user_id, intervention_id, timestamp, outcome_type, effectiveness_score, payload, created_at
+		FROM outcomes
+		WHERE user_id = ? AND intervention_id IN (`
+	args := []interface{}{userID}
+	for i, id := range interventionIDs {
+		if i > 0 {
+			query += ", "
+		}
+		query += "?"
+		args = append(args, id)
+	}
+	query += `)
+		ORDER BY timestamp DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var outcomes []models.Outcome
+	for rows.Next() {
+		var o models.Outcome
+		err := rows.Scan(&o.OutcomeID, &o.UserID, &o.InterventionID, &o.Timestamp, &o.OutcomeType, &o.EffectivenessScore, &o.Payload, &o.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		outcomes = append(outcomes, o)
+	}
+	return outcomes, nil
+}
+
 // GetDevice retrieves a device by ID.
 func (db *DB) GetDevice(deviceID string) (*models.Device, error) {
 	var d models.Device

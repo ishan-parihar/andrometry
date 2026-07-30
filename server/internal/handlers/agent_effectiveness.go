@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+
+	"github.com/andrometry/server/internal/models"
 )
 
 // GetAgentEffectiveness handles GET /v1/agents/:agent_id/effectiveness — computes agent effectiveness score from outcomes and feedback.
@@ -21,11 +23,20 @@ func (h *Handler) GetAgentEffectiveness(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get all outcomes
-	outcomes, err := h.DB.GetOutcomes(uid, "", 200)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to query outcomes")
-		return
+	// Build set of this agent's intervention IDs for batch outcomes query
+	interventionIDs := make([]string, 0, len(interventions))
+	for _, i := range interventions {
+		interventionIDs = append(interventionIDs, i.InterventionID)
+	}
+
+	// Batch query outcomes for this agent's interventions (avoids N+1)
+	var outcomes []models.Outcome
+	if len(interventionIDs) > 0 {
+		outcomes, err = h.DB.GetOutcomesByInterventionIDs(uid, interventionIDs, 200)
+		if err != nil {
+			respondError(w, http.StatusInternalServerError, "failed to query outcomes")
+			return
+		}
 	}
 
 	// Count intervention statuses
@@ -41,7 +52,7 @@ func (h *Handler) GetAgentEffectiveness(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Compute effectiveness from outcomes
+	// Compute effectiveness from agent-filtered outcomes
 	totalOutcomes := 0
 	acceptedCount := 0
 	behaviorChangeCount := 0

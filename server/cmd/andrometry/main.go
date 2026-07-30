@@ -148,8 +148,8 @@ func main() {
 	// Data Quality (§11.4)
 	mux.Handle("GET /v1/context/data-quality", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetDataQuality))))
 
-	// Agent Effectiveness (§35)
-	mux.Handle("GET /v1/agents/{agent_id}/effectiveness", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.GetAgentEffectiveness))))
+	// Agent Effectiveness (§35) — read-only endpoint, uses read scope
+	mux.Handle("GET /v1/agents/{agent_id}/effectiveness", auth(middleware.RequireScope("agent:interventions:read")(http.HandlerFunc(h.GetAgentEffectiveness))))
 
 	// Privacy / Sensitive mode
 	mux.Handle("GET /v1/privacy/sensitive-mode", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetSensitiveMode))))
@@ -218,7 +218,7 @@ func bootstrapDeviceToken(database *db.DB, rawToken string) {
 		UserID:    "primary",
 		TokenHash: agentHash,
 		TokenType: "agent",
-		Scopes:    "agent:context:read,agent:briefing:read,agent:timeline:read,agent:events:read,agent:summaries:read,agent:observations:write,agent:interventions:write,agent:feedback:read,agent:goals:read,agent:goals:write,agent:habits:read,agent:habits:write,agent:outcomes:write",
+		Scopes:    "agent:context:read,agent:briefing:read,agent:timeline:read,agent:events:read,agent:summaries:read,agent:observations:write,agent:interventions:read,agent:interventions:write,agent:feedback:read,agent:goals:read,agent:goals:write,agent:habits:read,agent:habits:write,agent:outcomes:write",
 	}
 
 	if err := database.CreateToken(agentToken); err != nil {
