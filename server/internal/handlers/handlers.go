@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1612,10 +1613,18 @@ func etagHash(data []byte) [16]byte {
 
 // encodeCursor encodes a timestamp string into a base64 cursor token.
 func encodeCursor(timestamp string) string {
-	return fmt.Sprintf("%s", timestamp)
+	return base64.URLEncoding.EncodeToString([]byte(timestamp))
 }
 
 // decodeCursor decodes a base64 cursor token back to a timestamp string.
 func decodeCursor(cursor string) string {
-	return cursor
+	decoded, err := base64.URLEncoding.DecodeString(cursor)
+	if err != nil {
+		// Try standard encoding as fallback
+		decoded, err = base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return ""
+		}
+	}
+	return string(decoded)
 }

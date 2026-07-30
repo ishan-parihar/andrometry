@@ -212,20 +212,28 @@ func generateSuggestedQueries(state BriefingState) []string {
 }
 
 func generateFromMap(m map[string]interface{}, briefingID string) *Briefing {
+	// Extract nested context if present
+	contextMap := m
+	if ctx, ok := m["context"]; ok {
+		if ctxMap, ok := ctx.(map[string]interface{}); ok {
+			contextMap = ctxMap
+		}
+	}
+
 	b := &Briefing{
 		BriefingID:  briefingID,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		State: BriefingState{
-			PrimaryActivity:         getString(m, "primary_activity", "unknown"),
-			Place:                   getString(m, "place", "unknown"),
-			FocusActive:             getBool(m, "focus_active"),
-			DistractionProbability:  getFloat64(m, "distraction_probability"),
-			FatigueProbability:      getFloat64(m, "fatigue_probability"),
-			AlignmentProbability:    getFloat64(m, "alignment_probability"),
-			ReadinessScore:          getFloat64(m, "readiness_score"),
+			PrimaryActivity:         getString(contextMap, "primary_activity", "unknown"),
+			Place:                   getString(contextMap, "place", "unknown"),
+			FocusActive:             getBool(contextMap, "focus_active"),
+			DistractionProbability:  getFloat64(contextMap, "distraction_probability"),
+			FatigueProbability:      getFloat64(contextMap, "fatigue_probability"),
+			AlignmentProbability:    getFloat64(contextMap, "alignment_probability"),
+			ReadinessScore:          getFloat64(contextMap, "readiness_score"),
 		},
-		Risks:            detectRisks(m),
-		Opportunities:    detectOpportunities(m),
+		Risks:            detectRisks(contextMap),
+		Opportunities:    detectOpportunities(contextMap),
 		SuggestedQueries: []string{"get_current_context", "get_daily_summary"},
 	}
 	return b

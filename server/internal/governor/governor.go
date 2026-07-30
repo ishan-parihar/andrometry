@@ -88,6 +88,8 @@ func UnmarshalPolicy(data string) Policy {
 	if data == "" {
 		return DefaultPolicy()
 	}
-	json.Unmarshal([]byte(data), &p)
+	if err := json.Unmarshal([]byte(data), &p); err != nil {
+		return DefaultPolicy()
+	}
 	return p
 }
