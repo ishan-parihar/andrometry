@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:timeline_segment",
+  "title": "Timeline Segment",
+  "description": "Semantic timeline segment per §12.6",
+  "type": "object",
+  "required": ["segment_id", "device_id", "segment_type", "start_time", "end_time", "label", "version"],
+  "properties": {
+    "segment_id": {
+      "type": "string",
+      "description": "Globally unique segment identifier (UUID)"
+    },
+    "device_id": {
+      "type": "string"
+    },
+    "segment_type": {
+      "type": "string",
+      "enum": [
+        "activity_segment", "focus_segment", "place_visit", "app_usage_segment",
+        "meeting_segment", "communication_segment", "sleep_segment",
+        "distraction_segment", "break_segment", "exercise_segment", "commute_segment"
+      ]
+    },
+    "layer": {
+      "type": "string",
+      "enum": ["activity", "place", "focus", "communication", "health", "calendar", "device"]
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable label (e.g. deep_work, office, sleep)"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "valid_from": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "valid_to": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "ingested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revised_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "revision_reason": {
+      "type": ["string", "null"],
+      "enum": [null, "calendar_sync", "sleep_data_arrived", "location_improved", "user_correction", "agent_correction"]
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Evidence supporting the segment classification"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Segment-specific payload (interruptions, distraction_minutes, etc.)"
+    }
+  }
+}

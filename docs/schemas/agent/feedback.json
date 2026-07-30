@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:feedback",
+  "title": "User Feedback",
+  "description": "User feedback on interventions/observations per §5.1 Layer 7",
+  "type": "object",
+  "required": ["feedback_id", "timestamp", "target_type", "target_id", "feedback_type"],
+  "properties": {
+    "feedback_id": {
+      "type": "string",
+      "description": "Globally unique feedback identifier (UUID)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": ["intervention", "observation", "goal", "habit"],
+      "description": "What the feedback targets"
+    },
+    "target_id": {
+      "type": "string",
+      "description": "ID of the target entity"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": ["accepted", "dismissed", "ignored", "helpful", "not_helpful", "too_frequent", "wrong_timing", "custom"],
+      "description": "Type of feedback"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "note": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:observation",
+  "title": "Agent Observation",
+  "description": "Observation written by an AI agent per §5.1 Layer 6",
+  "type": "object",
+  "required": ["observation_id", "timestamp", "agent_id", "payload"],
+  "properties": {
+    "observation_id": {
+      "type": "string",
+      "description": "Globally unique observation identifier (UUID)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent_id": {
+      "type": "string",
+      "description": "Agent identifier"
+    },
+    "observation_type": {
+      "type": "string",
+      "enum": ["focus_drift", "distraction_spike", "fatigue_detected", "alignment_change", "habit_break", "pattern_anomaly", "custom"],
+      "description": "Type of observation"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Observation severity"
+    },
+    "payload": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": { "type": "string" },
+        "evidence": { "type": "object" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

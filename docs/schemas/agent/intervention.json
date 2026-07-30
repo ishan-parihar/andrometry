@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:intervention",
+  "title": "Agent Intervention",
+  "description": "Agent-proposed intervention per §34",
+  "type": "object",
+  "required": ["intervention_id", "timestamp", "agent_id", "status"],
+  "properties": {
+    "intervention_id": {
+      "type": "string",
+      "description": "Globally unique intervention identifier (UUID)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "intervention_type": {
+      "type": "string",
+      "enum": ["nudge", "reflection", "suggestion", "warning", "celebration", "custom"],
+      "description": "Type of intervention"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "approved_by_policy", "delivered", "accepted", "dismissed", "ignored", "completed", "failed", "suppressed", "expired"],
+      "description": "Intervention lifecycle status per §34"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "suggested_action": { "type": "string" },
+        "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+        "evidence": { "type": "object" }
+      }
+    }
+  }
+}

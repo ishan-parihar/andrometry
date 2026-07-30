@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:event_envelope",
+  "title": "Event Envelope",
+  "description": "Common envelope for all events per §10.1",
+  "type": "object",
+  "required": ["event_id", "device_id", "schema_version", "timestamp", "timezone", "event_type"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Globally unique event identifier (UUID)"
+    },
+    "device_id": {
+      "type": "string",
+      "description": "Device identifier"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version for compatibility"
+    },
+    "event_version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Event version for evolution"
+    },
+    "client_version": {
+      "type": "string",
+      "description": "Client app version"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event timestamp in ISO 8601"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA timezone (e.g. Asia/Kolkata)"
+    },
+    "utc_offset_seconds": {
+      "type": "integer",
+      "description": "UTC offset in seconds"
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Event type identifier",
+      "enum": [
+        "boot_completed", "screen_state_changed", "device_unlocked",
+        "battery_state_changed", "charging_state_changed", "timezone_changed",
+        "connectivity_changed", "permission_state_changed", "app_health", "sync_heartbeat",
+        "app_usage_summary", "app_category_summary", "app_switch_burst", "app_classification_updated",
+        "notification_event", "notification_summary", "notification_interruption_summary",
+        "focus_session", "focus_state_changed", "focus_interruption",
+        "calendar_context", "calendar_event_changed",
+        "location_context", "place_visit_started", "place_visit_ended", "geofence_transition", "movement_context",
+        "health_summary", "sleep_summary", "activity_recognition", "exercise_session",
+        "communication_summary", "communication_notification_summary",
+        "context_snapshot", "activity_segment", "daily_summary", "weekly_summary",
+        "agent_observation", "agent_intervention", "user_feedback", "intervention_outcome",
+        "goal_updated", "habit_updated", "baseline_updated", "user_correction"
+      ]
+    },
+    "collector": {
+      "type": "string",
+      "description": "Collector identifier (e.g. usage_stats, notification_listener)"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source type (e.g. workmanager, foreground_service, broadcast)"
+    },
+    "sequence": {
+      "type": "integer",
+      "description": "Monotonic sequence number per device"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific payload"
+    }
+  }
+}

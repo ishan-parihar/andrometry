@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:data_quality_response",
+  "title": "Data Quality Response",
+  "description": "Data quality endpoint response per §11.4",
+  "type": "object",
+  "required": ["timestamp", "data_quality"],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data_quality": {
+      "type": "object",
+      "properties": {
+        "completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "staleness_seconds": { "type": "integer" },
+        "missing_signals": { "type": "array", "items": { "type": "string" } },
+        "missing_collectors": { "type": "array", "items": { "type": "string" } },
+        "degraded_collectors": { "type": "array", "items": { "type": "string" } },
+        "permission_issues": { "type": "array", "items": { "type": "string" } },
+        "clock_drift_detected": { "type": "boolean" },
+        "last_sync_minutes_ago": { "type": "integer" }
+      }
+    }
+  }
+}

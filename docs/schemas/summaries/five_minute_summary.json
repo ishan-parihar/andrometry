@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:five_minute_summary",
+  "title": "Five-Minute Summary",
+  "description": "5-minute summary object per §13.1",
+  "type": "object",
+  "required": ["start_time", "end_time", "summary"],
+  "properties": {
+    "start_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "description": "5-minute summary payload"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:briefing",
+  "title": "Agent Briefing",
+  "description": "High-level agent briefing per §5.3 query ladder",
+  "type": "object",
+  "required": ["briefing_id", "generated_at", "state"],
+  "properties": {
+    "briefing_id": {
+      "type": "string",
+      "description": "Unique briefing identifier"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "state": {
+      "type": "object",
+      "required": ["primary_activity", "place"],
+      "properties": {
+        "primary_activity": { "type": "string" },
+        "place": { "type": "string" },
+        "focus_active": { "type": "boolean" },
+        "distraction_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fatigue_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "alignment_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "readiness_score": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "delta_since_last": {
+      "type": ["object", "null"],
+      "properties": {
+        "distraction_probability_change": { "type": "number" },
+        "focus_minutes_elapsed": { "type": "integer" }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "opportunities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "suggested_queries": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Recommended MCP tool queries for the agent"
+    }
+  }
+}

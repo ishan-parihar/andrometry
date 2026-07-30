@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:sync_heartbeat",
+  "title": "Sync Heartbeat",
+  "description": "Minimal heartbeat for delta sync per §14.4",
+  "type": "object",
+  "required": ["event_type", "timestamp", "payload"],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "const": "sync_heartbeat"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "required": ["battery", "charging", "storage_free_mb", "queue_size"],
+      "properties": {
+        "battery": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Battery level (0.0-1.0)"
+        },
+        "charging": {
+          "type": "boolean",
+          "description": "Whether device is charging"
+        },
+        "storage_free_mb": {
+          "type": "integer",
+          "description": "Free storage in MB"
+        },
+        "queue_size": {
+          "type": "integer",
+          "description": "Number of pending items in sync queue"
+        },
+        "last_context_change_minutes_ago": {
+          "type": "integer",
+          "description": "Minutes since last context change"
+        }
+      }
+    }
+  }
+}

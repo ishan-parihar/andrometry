@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:outcome",
+  "title": "Intervention Outcome",
+  "description": "Outcome tracking per §35",
+  "type": "object",
+  "required": ["outcome_id", "intervention_id", "timestamp", "outcome_type"],
+  "properties": {
+    "outcome_id": {
+      "type": "string",
+      "description": "Globally unique outcome identifier (UUID)"
+    },
+    "intervention_id": {
+      "type": "string",
+      "description": "ID of the related intervention"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "outcome_type": {
+      "type": "string",
+      "enum": [
+        "accepted", "dismissed", "ignored", "completed",
+        "behavior_change", "metric_improved", "self_reported_helpful",
+        "no_measurable_effect", "negative_effect"
+      ],
+      "description": "Outcome type per §35"
+    },
+    "effectiveness_score": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Weighted effectiveness score per §35"
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "evidence": { "type": "object" },
+        "self_report": { "type": "object" }
+      }
+    }
+  }
+}
