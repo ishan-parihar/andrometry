@@ -1,6 +1,8 @@
 package com.andrometry.inference.context
 
 import com.andrometry.core.network.AndrometryApi
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -17,8 +19,13 @@ import javax.inject.Singleton
  */
 @Singleton
 class PreferencesBridge @Inject constructor(
-    private val api: AndrometryApi
+    private val api: AndrometryApi,
+    @ApplicationContext private val context: android.content.Context
 ) {
+    private val prefs by lazy {
+        context.getSharedPreferences("andrometry_prefs", android.content.Context.MODE_PRIVATE)
+    }
+    private val authToken: String get() = "Bearer ${prefs.getString("device_token", "") ?: ""}"
     private val mutex = Mutex()
     private var cachedWeights: Map<String, Double> = emptyMap()
     private var lastFetchTime: Long = 0L
@@ -55,26 +62,32 @@ class PreferencesBridge @Inject constructor(
                 return@withLock cachedWeights
             }
 
-            try {
-                val response = api.getPreferences("alignment")
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    val prefs = body?.get("preferences") as? Map<*, *>
-                    val alignmentPrefs = prefs?.get("alignment") as? Map<*, *>
+            // Skip API call if token not configured yet
+            if (authToken == "Bearer ") {
+                cachedWeights = defaultWeights
+                lastFetchTime = now
+                return@withLock defaultWeights
+            }
 
-                    if (alignmentPrefs != null) {
-                        val weights = mutableMapOf<String, Double>()
-                        weights.putAll(defaultWeights)
-                        for ((key, value) in alignmentPrefs) {
-                            if (key is String && value is String) {
-                                value.toDoubleOrNull()?.let { weights[key] = it }
-                            }
+            try {
+                val response = api.getPreferences(authToken, "alignment")
+                val prefs = response["preferences"] as? Map<*, *>
+                val alignmentPrefs = prefs?.get("alignment") as? Map<*, *>
+
+                if (alignmentPrefs != null) {
+                    val weights = mutableMapOf<String, Double>()
+                    weights.putAll(defaultWeights)
+                    for ((key, value) in alignmentPrefs) {
+                        if (key is String && value is Number) {
+                            weights[key] = value.toDouble()
                         }
-                        cachedWeights = weights
-                        lastFetchTime = now
-                        return@withLock weights
                     }
+                    cachedWeights = weights
+                    lastFetchTime = now
+                    return@withLock weights
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Network error — use defaults
             }

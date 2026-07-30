@@ -383,7 +383,7 @@ class ContextInferenceEngine @Inject constructor(
      * 5. Focus-based (deep_work, shallow_work)
      * 6. Category-based (communication, social, leisure, etc.)
      */
-    private fun classifyActivity(
+    private suspend fun classifyActivity(
         focusActive: Boolean,
         currentAppCategory: String,
         appSwitchCount: Int,

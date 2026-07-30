@@ -78,6 +78,12 @@ interface AndrometryApi {
         @Header("Authorization") token: String
     ): Map<String, Any?>
 
+    @GET("v1/preferences")
+    suspend fun getPreferences(
+        @Header("Authorization") token: String,
+        @Query("category") category: String? = null
+    ): Map<String, Any?>
+
     @GET("v1/summary/daily")
     suspend fun getDailySummary(
         @Header("Authorization") token: String,
