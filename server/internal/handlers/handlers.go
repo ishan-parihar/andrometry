@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -153,6 +154,23 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 
 	uid := userID(r)
 
+	// Enforce batch size limits — truncate and track original counts
+	origEvents := len(batch.Events)
+	origSegments := len(batch.Segments)
+	origSummaries := len(batch.Summaries)
+	if origEvents > h.MaxBatchEvents {
+		log.Printf("[batch] truncating events: %d → %d", origEvents, h.MaxBatchEvents)
+		batch.Events = batch.Events[:h.MaxBatchEvents]
+	}
+	if origSegments > h.MaxBatchSegments {
+		log.Printf("[batch] truncating segments: %d → %d", origSegments, h.MaxBatchSegments)
+		batch.Segments = batch.Segments[:h.MaxBatchSegments]
+	}
+	if origSummaries > h.MaxBatchSummaries {
+		log.Printf("[batch] truncating summaries: %d → %d", origSummaries, h.MaxBatchSummaries)
+		batch.Summaries = batch.Summaries[:h.MaxBatchSummaries]
+	}
+
 	// Upsert device
 	_ = h.DB.UpsertDevice(&models.Device{
 		DeviceID:      batch.DeviceID,
@@ -265,7 +283,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"accepted_events":       acceptedEvents,
-		"rejected_events":       len(batch.Events) - acceptedEvents,
+		"rejected_events":       origEvents - acceptedEvents,
 		"accepted_segments":     acceptedSegments,
 		"accepted_summaries":    acceptedSummaries,
 		"missing_sequences":     missingSequences,

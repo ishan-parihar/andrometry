@@ -128,6 +128,8 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 
 	if pruned > 0 {
 		log.Printf("[retention] total pruned: %d rows", pruned)
+		// Audit log the retention enforcement action
+		log.Printf("[retention:audit] action=retention_enforcement pruned_rows=%d", pruned)
 	}
 	log.Println("[retention] policy enforcement complete")
 	return nil
