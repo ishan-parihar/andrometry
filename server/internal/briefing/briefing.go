@@ -329,11 +329,38 @@ func computeAlignmentProb(ctx map[string]interface{}) float64 {
 	return clamp01(alignment)
 }
 
-// computeReadinessScore estimates readiness from fatigue and other signals.
+// computeReadinessScore estimates readiness from fatigue, sleep, and activity signals.
 func computeReadinessScore(fatigueProb float64, ctx map[string]interface{}) float64 {
-	fatigueComponent := (1.0 - fatigueProb) * 0.5
-	readiness := 0.3 + fatigueComponent // base 0.3 + fatigue contribution
+	readiness := 0.5 // base
+	// Fatigue reduces readiness
+	readiness -= fatigueProb * 0.3
+	// Sleep quality boosts readiness
+	sleepInfo := getNestedMap(ctx, "sleep")
+	if sleepMinutes := getFloat64(sleepInfo, "last_sleep_minutes"); sleepMinutes > 0 {
+		if sleepMinutes >= 420 { // 7+ hours
+			readiness += 0.15
+		} else if sleepMinutes >= 360 { // 6+ hours
+			readiness += 0.08
+		} else {
+			readiness -= 0.1 // sleep debt
+		}
+	}
+	// Recent activity boosts readiness
+	healthInfo := getNestedMap(ctx, "health")
+	if steps := getFloat64(healthInfo, "steps_last_hour"); steps > 100 {
+		readiness += 0.05
+	}
 	return clamp01(readiness)
+}
+
+// getNestedMap extracts a nested map from a parent map.
+func getNestedMap(m map[string]interface{}, key string) map[string]interface{} {
+	if v, ok := m[key]; ok {
+		if nested, ok := v.(map[string]interface{}); ok {
+			return nested
+		}
+	}
+	return map[string]interface{}{}
 }
 
 // clamp01 clamps a float64 to [0, 1].

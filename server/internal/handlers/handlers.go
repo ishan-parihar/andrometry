@@ -292,6 +292,18 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		if err := h.Summarizer.GenerateDailySummary(uid, segDate, tz); err != nil {
 			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
 		}
+
+		// Auto-generate weekly summary if we now have enough daily summaries for the week
+		if t, err := time.Parse("2006-01-02", segDate); err == nil {
+			year, week := t.ISOWeek()
+			weekStr := fmt.Sprintf("%d-W%02d", year, week)
+			dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
+			if countErr == nil && dailyCount >= 3 {
+				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
+					log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
+				}
+			}
+		}
 	}
 
 	// Gap detection — find missing sequences

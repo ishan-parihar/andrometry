@@ -39,6 +39,14 @@ func weekDateRange(year, week int) (string, string) {
 	return start.Format("2006-01-02"), end.Format("2006-01-02")
 }
 
+// CountDailySummariesForWeek returns the number of daily summaries for a given ISO week.
+func (db *DB) CountDailySummariesForWeek(userID string, year, week int) (int, error) {
+	startDate, endDate := weekDateRange(year, week)
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM daily_summary WHERE user_id = ? AND date >= ? AND date <= ?`, userID, startDate, endDate).Scan(&count)
+	return count, err
+}
+
 // isoWeekStart returns the Monday of the given ISO week.
 func isoWeekStart(year, week int) time.Time {
 	// January 4 is always in week 1. Find the Monday of week 1.
