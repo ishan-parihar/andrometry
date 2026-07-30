@@ -315,8 +315,10 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 			// Weekly summary exists — regenerate if it's stale (latest daily summary is newer)
 			latestDaily, latestErr := h.DB.GetLatestDailySummaryForWeek(uid, year, week)
 			if latestErr == nil && latestDaily != nil {
-				weeklyTime, _ := time.Parse(time.RFC3339, existingWeekly.UpdatedAt)
-				dailyTime, _ := time.Parse(time.RFC3339, latestDaily.UpdatedAt)
+				// SQLite datetime('now') produces "2006-01-02 15:04:05" format
+				const sqliteTimeFmt = "2006-01-02 15:04:05"
+				weeklyTime, _ := time.Parse(sqliteTimeFmt, existingWeekly.UpdatedAt)
+				dailyTime, _ := time.Parse(sqliteTimeFmt, latestDaily.UpdatedAt)
 				if dailyTime.After(weeklyTime) {
 					needsGeneration = true
 				}
