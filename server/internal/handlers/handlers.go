@@ -382,8 +382,14 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		resp = []segmentResp{}
 	}
 
+	// Use timezone from the user's context if available, fallback to UTC
+	timeZone := "UTC"
+	if ctx, err := h.DB.GetContextByUser(uid); err == nil && ctx.Timezone != "" {
+		timeZone = ctx.Timezone
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"timezone": queryParam(r, "timezone", "UTC"),
+		"timezone": timeZone,
 		"timeline": resp,
 	})
 }

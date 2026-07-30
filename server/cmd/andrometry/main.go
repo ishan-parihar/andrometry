@@ -70,9 +70,15 @@ func main() {
 		cfg.BootstrapToken = *bootstrapToken
 	}
 
-	// Warn if config.toml is provided but we're using hardcoded defaults
-	if *configPath != "" {
-		log.Printf("[config] note: config.toml parsing not yet implemented, using defaults + CLI flags")
+	// Parse config.toml if provided, or look for default locations
+	configFile := *configPath
+	if configFile == "" {
+		if _, err := os.Stat("config.toml"); err == nil {
+			configFile = "config.toml"
+		}
+	}
+	if configFile != "" {
+		parseConfigFile(configFile, &cfg)
 	}
 
 	// Open database
