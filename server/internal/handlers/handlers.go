@@ -277,34 +277,35 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto-generate daily summary from segments if segments were ingested
+	tz := "UTC"
+	if len(batch.Context) > 0 {
+		if t, ok := batch.Context["timezone"].(string); ok && t != "" {
+			tz = t
+		}
+	}
+
 	if acceptedSegments > 0 && len(batch.Segments) > 0 {
 		// Extract date from first segment's timestamp (handles late syncs correctly)
 		segDate := time.Now().UTC().Format("2006-01-02")
 		if startTime, ok := batch.Segments[0]["start_time"].(string); ok && len(startTime) >= 10 {
 			segDate = startTime[:10]
 		}
-		tz := "UTC"
-		if len(batch.Context) > 0 {
-			if t, ok := batch.Context["timezone"].(string); ok && t != "" {
-				tz = t
-			}
-		}
 		if err := h.Summarizer.GenerateDailySummary(uid, segDate, tz); err != nil {
 			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
 		}
+	}
 
-		// Auto-generate weekly summary if enough daily summaries exist and no weekly exists yet
-		if t, err := time.Parse("2006-01-02", segDate); err == nil {
-			year, week := t.ISOWeek()
-			weekStr := fmt.Sprintf("%d-W%02d", year, week)
-			// Only generate if no weekly summary exists yet for this week
-			existingWeekly, weeklyErr := h.DB.GetWeeklySummary(uid, weekStr)
-			if weeklyErr != nil || existingWeekly == nil {
-				dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
-				if countErr == nil && dailyCount >= 5 {
-					if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
-						log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
-					}
+	// Auto-generate weekly summary if enough daily summaries exist and no weekly exists yet
+	// This runs on every batch (not just segment ingestion) to handle direct summary uploads
+	if t, err := time.Parse("2006-01-02", time.Now().UTC().Format("2006-01-02")); err == nil {
+		year, week := t.ISOWeek()
+		weekStr := fmt.Sprintf("%d-W%02d", year, week)
+		existingWeekly, weeklyErr := h.DB.GetWeeklySummary(uid, weekStr)
+		if weeklyErr != nil || existingWeekly == nil {
+			dailyCount, countErr := h.DB.CountDailySummariesForWeek(uid, year, week)
+			if countErr == nil && dailyCount >= 5 {
+				if err := h.Summarizer.GenerateWeeklySummary(uid, weekStr, tz); err != nil {
+					log.Printf("[batch] weekly summary generation failed for %s: %v", weekStr, err)
 				}
 			}
 		}
