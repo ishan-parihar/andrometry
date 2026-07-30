@@ -288,8 +288,18 @@ func main() {
 }
 
 func bootstrapDeviceToken(database *db.DB, rawToken string) {
-	tokenID := uuid.New().String()
 	hash := db.HashToken(rawToken)
+
+	// Check if token already exists — skip if so
+	if existing, err := database.ValidateToken(hash); err == nil && existing != nil {
+		log.Printf("[bootstrap] device token already exists (ID: %s), skipping", existing.TokenID)
+		fmt.Println("=== ANDROMETRY BOOTSTRAP SKIPPED ===")
+		fmt.Println("Token already exists in database. No action taken.")
+		fmt.Println("====================================")
+		return
+	}
+
+	tokenID := uuid.New().String()
 
 	token := &models.AuthToken{
 		TokenID:   tokenID,
@@ -300,26 +310,29 @@ func bootstrapDeviceToken(database *db.DB, rawToken string) {
 	}
 
 	if err := database.CreateToken(token); err != nil {
-		log.Printf("[bootstrap] token may already exist: %v", err)
-	} else {
-		log.Printf("[bootstrap] device token created: %s (ID: %s)", rawToken[:8]+"...", tokenID)
+		log.Printf("[bootstrap] failed to create device token: %v", err)
+		return
 	}
+	log.Printf("[bootstrap] device token created: %s (ID: %s)", rawToken[:8]+"...", tokenID)
 
 	// Also create an agent token
 	agentTokenID := uuid.New().String()
 	agentHash := db.HashToken("agent-" + rawToken)
-	agentToken := &models.AuthToken{
-		TokenID:   agentTokenID,
-		UserID:    "primary",
-		TokenHash: agentHash,
-		TokenType: "agent",
-		Scopes:    "agent:context:read,agent:briefing:read,agent:timeline:read,agent:events:read,agent:summaries:read,agent:observations:write,agent:interventions:read,agent:interventions:write,agent:feedback:read,agent:goals:read,agent:goals:write,agent:habits:read,agent:habits:write,agent:outcomes:write",
-	}
-
-	if err := database.CreateToken(agentToken); err != nil {
-		log.Printf("[bootstrap] agent token may already exist: %v", err)
+	if existing, err := database.ValidateToken(agentHash); err == nil && existing != nil {
+		log.Printf("[bootstrap] agent token already exists (ID: %s), skipping", existing.TokenID)
 	} else {
-		log.Printf("[bootstrap] agent token created: agent-%s (ID: %s)", rawToken[:8]+"...", agentTokenID)
+		agentToken := &models.AuthToken{
+			TokenID:   agentTokenID,
+			UserID:    "primary",
+			TokenHash: agentHash,
+			TokenType: "agent",
+			Scopes:    "agent:context:read,agent:briefing:read,agent:timeline:read,agent:events:read,agent:summaries:read,agent:observations:write,agent:interventions:read,agent:interventions:write,agent:feedback:read,agent:goals:read,agent:goals:write,agent:habits:read,agent:habits:write,agent:outcomes:write",
+		}
+		if err := database.CreateToken(agentToken); err != nil {
+			log.Printf("[bootstrap] failed to create agent token: %v", err)
+		} else {
+			log.Printf("[bootstrap] agent token created: agent-%s (ID: %s)", rawToken[:8]+"...", agentTokenID)
+		}
 	}
 
 	// Print instructions

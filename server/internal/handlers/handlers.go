@@ -382,10 +382,21 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		resp = []segmentResp{}
 	}
 
-	// Use timezone from the user's context if available, fallback to UTC
+	// Use timezone from segment payload or user context, fallback to UTC
 	timeZone := "UTC"
-	if ctx, err := h.DB.GetContextByUser(uid); err == nil && ctx.Timezone != "" {
-		timeZone = ctx.Timezone
+	for _, s := range segments {
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(s.Payload), &payload); err == nil {
+			if tz, ok := payload["timezone"].(string); ok && tz != "" {
+				timeZone = tz
+				break
+			}
+		}
+	}
+	if timeZone == "UTC" {
+		if ctx, err := h.DB.GetContextByUser(uid); err == nil && ctx.Timezone != "" {
+			timeZone = ctx.Timezone
+		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
