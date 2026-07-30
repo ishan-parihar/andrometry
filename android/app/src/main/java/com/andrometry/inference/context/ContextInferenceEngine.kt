@@ -3,6 +3,8 @@ package com.andrometry.inference.context
 import com.andrometry.core.database.CurrentContextEntity
 import com.andrometry.core.database.EventEntity
 import com.google.gson.Gson
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -24,7 +26,9 @@ import javax.inject.Singleton
  * - Sleep debt
  */
 @Singleton
-class ContextInferenceEngine @Inject constructor() {
+class ContextInferenceEngine @Inject constructor(
+    private val preferencesBridge: PreferencesBridge? = null
+) {
 
     data class ContextSnapshot(
         val primaryActivity: String,
@@ -105,7 +109,9 @@ class ContextInferenceEngine @Inject constructor() {
     /**
      * Last classified activity for hysteresis.
      * Tracks the previous activity to apply cooldown logic.
+     * Protected by hysteresisMutex for thread safety with suspend callers.
      */
+    private val hysteresisMutex = Mutex()
     private var lastActivity: String? = null
     private var lastActivityTimestamp: Long = 0L
 
@@ -115,11 +121,12 @@ class ContextInferenceEngine @Inject constructor() {
      * Sensor-based detections (sleep, meeting, exercise, commute) bypass cooldown.
      * When sensor condition is no longer active, cooldown is bypassed to allow transition.
      */
-    private fun applyTemporalHysteresis(
+    private suspend fun applyTemporalHysteresis(
         newActivity: String,
         newConfidence: Double,
         now: Long
     ): Pair<String, Double> {
+        return hysteresisMutex.withLock {
         // Sensor-based activities bypass cooldown (they're high-confidence signals)
         val sensorActivities = setOf("sleep", "meeting", "exercise", "commute")
         if (newActivity in sensorActivities) {
@@ -154,7 +161,8 @@ class ContextInferenceEngine @Inject constructor() {
         // Cooldown passed or first classification — accept new activity
         lastActivity = newActivity
         lastActivityTimestamp = now
-        return newActivity to newConfidence
+        newActivity to newConfidence
+        }
     }
 
     /**
@@ -169,7 +177,7 @@ class ContextInferenceEngine @Inject constructor() {
      * - Minimum duration thresholds
      * - Background audio app exclusion
      */
-    fun infer(
+    suspend fun infer(
         recentEvents: List<EventEntity>,
         screenState: String = "on",
         currentAppCategory: String = "unknown",
@@ -580,30 +588,31 @@ class ContextInferenceEngine @Inject constructor() {
      * - App category alignment
      * - Calendar context (meeting = aligned)
      */
-    private fun calculateAlignmentProbability(
+    private suspend fun calculateAlignmentProbability(
         focusActive: Boolean,
         currentAppCategory: String,
         calendarInfo: CalendarInfo?,
         isInMeeting: Boolean
     ): Double {
-        var alignment = 0.5 // baseline
+        // Delegate to PreferencesBridge if available (uses server-configured weights)
+        if (preferencesBridge != null) {
+            return preferencesBridge.calculateAlignmentProbability(
+                focusActive = focusActive,
+                currentAppCategory = currentAppCategory,
+                isInMeeting = isInMeeting
+            )
+        }
 
-        // Focus active increases alignment
+        // Fallback: hardcoded defaults (matches PreferencesBridge.defaultWeights)
+        var alignment = 0.5
         if (focusActive) alignment += 0.3
-
-        // Productivity/education apps increase alignment
         if (currentAppCategory in listOf("productivity", "education", "email", "calendar")) {
             alignment += 0.15
         }
-
-        // Meeting context increases alignment
         if (isInMeeting) alignment += 0.1
-
-        // Social/entertainment decreases alignment
         if (currentAppCategory in listOf("social", "entertainment")) {
             alignment -= 0.2
         }
-
         return alignment.coerceIn(0.0, 1.0)
     }
 

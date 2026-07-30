@@ -124,12 +124,4 @@ class PreferencesBridge @Inject constructor(
         return alignment.coerceIn(0.0, 1.0)
     }
 
-    /**
-     * Invalidates the cache, forcing a fresh fetch on next access.
-     * Called when user updates preferences on the server.
-     */
-    fun invalidateCache() {
-        cachedWeights = emptyMap()
-        lastFetchTime = 0L
-    }
 }
