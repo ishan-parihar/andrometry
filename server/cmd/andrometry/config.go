@@ -43,8 +43,7 @@ func parseConfigFile(path string, cfg *Config) {
 		val := strings.TrimSpace(line[eqIdx+1:])
 
 		// Strip inline comments (unquoted #)
-		// Check for # outside of quotes
-		inString := len(val) > 0 && (val[0] == '"' || val[0] == '\'')
+		inString := false
 		for i, ch := range val {
 			if (ch == '"' || ch == '\'') && (i == 0 || val[i-1] != '\\') {
 				inString = !inString
