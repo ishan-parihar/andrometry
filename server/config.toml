@@ -14,12 +14,21 @@ max_batch_segments = 100
 max_batch_summaries = 50
 compression_enabled = true
 
+[security]
+max_request_body_mb = 10
+cors_origin = "*"
+
 [retention]
 raw_events_days = 30
 timeline_segments_days = 365
 daily_summaries_days = -1        # indefinite
+weekly_summaries_days = -1       # indefinite
+five_minute_summaries_days = 90
+hourly_summaries_days = 365
 agent_observations_days = 90
 interventions_days = 90
+outcomes_days = 90
+user_feedback_days = -1          # indefinite
 audit_log_days = 365
 
 [policy]

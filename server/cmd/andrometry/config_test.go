@@ -240,10 +240,62 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.MaxBatchEvents != 500 {
 		t.Errorf("default MaxBatchEvents = %d", cfg.MaxBatchEvents)
 	}
+	if cfg.MaxRequestBodyMB != 10 {
+		t.Errorf("default MaxRequestBodyMB = %d, want 10", cfg.MaxRequestBodyMB)
+	}
+	if cfg.CORSOrigin != "*" {
+		t.Errorf("default CORSOrigin = %q, want \"*\"", cfg.CORSOrigin)
+	}
 	if !cfg.SSEEnabled {
 		t.Error("default SSEEnabled = false")
 	}
 	if cfg.SSEPollSeconds != 5 {
 		t.Errorf("default SSEPollSeconds = %d", cfg.SSEPollSeconds)
+	}
+}
+
+func TestParseConfigFile_SecuritySection(t *testing.T) {
+	cfg := DefaultConfig()
+	path := writeTempConfig(t, `
+[security]
+max_request_body_mb = 20
+cors_origin = "https://example.com"
+`)
+	parseConfigFile(path, &cfg)
+
+	if cfg.MaxRequestBodyMB != 20 {
+		t.Errorf("MaxRequestBodyMB = %d, want 20", cfg.MaxRequestBodyMB)
+	}
+	if cfg.CORSOrigin != "https://example.com" {
+		t.Errorf("CORSOrigin = %q, want \"https://example.com\"", cfg.CORSOrigin)
+	}
+}
+
+func TestParseConfigFile_NewRetentionFields(t *testing.T) {
+	cfg := DefaultConfig()
+	path := writeTempConfig(t, `
+[retention]
+weekly_summaries_days = -1
+five_minute_summaries_days = 45
+hourly_summaries_days = 180
+outcomes_days = 60
+user_feedback_days = -1
+`)
+	parseConfigFile(path, &cfg)
+
+	if cfg.Retention.WeeklySummariesDays != -1 {
+		t.Errorf("WeeklySummariesDays = %d, want -1", cfg.Retention.WeeklySummariesDays)
+	}
+	if cfg.Retention.FiveMinuteSummariesDays != 45 {
+		t.Errorf("FiveMinuteSummariesDays = %d, want 45", cfg.Retention.FiveMinuteSummariesDays)
+	}
+	if cfg.Retention.HourlySummariesDays != 180 {
+		t.Errorf("HourlySummariesDays = %d, want 180", cfg.Retention.HourlySummariesDays)
+	}
+	if cfg.Retention.OutcomesDays != 60 {
+		t.Errorf("OutcomesDays = %d, want 60", cfg.Retention.OutcomesDays)
+	}
+	if cfg.Retention.UserFeedbackDays != -1 {
+		t.Errorf("UserFeedbackDays = %d, want -1", cfg.Retention.UserFeedbackDays)
 	}
 }
