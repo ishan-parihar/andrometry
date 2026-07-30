@@ -63,18 +63,7 @@ func main() {
 	// Load config (config.toml support — if file exists, parse it; otherwise use defaults)
 	cfg := DefaultConfig()
 
-	// CLI flags take precedence over config
-	if *dbPath != "" {
-		cfg.DatabasePath = *dbPath
-	}
-	if *port > 0 {
-		cfg.Address = fmt.Sprintf(":%d", *port)
-	}
-	if *bootstrapToken != "" {
-		cfg.BootstrapToken = *bootstrapToken
-	}
-
-	// Parse config.toml if provided, or look for default locations
+	// Parse config.toml FIRST — provides base defaults
 	configFile := *configPath
 	if configFile == "" {
 		if _, err := os.Stat("config.toml"); err == nil {
@@ -83,6 +72,17 @@ func main() {
 	}
 	if configFile != "" {
 		parseConfigFile(configFile, &cfg)
+	}
+
+	// CLI flags take precedence over config.toml values
+	if *dbPath != "" {
+		cfg.DatabasePath = *dbPath
+	}
+	if *port > 0 {
+		cfg.Address = fmt.Sprintf(":%d", *port)
+	}
+	if *bootstrapToken != "" {
+		cfg.BootstrapToken = *bootstrapToken
 	}
 
 	// Open database
