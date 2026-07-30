@@ -327,114 +327,94 @@ class ContextInferenceEngine @Inject constructor() {
         currentPlace: String,
         healthInfo: HealthInfo?
     ): Pair<String, Double> {
-        // Priority 1: Sleep detection
-        if (isSleeping) {
-            return "sleep" to 0.85
-        }
+        // Priority 1-4: Sensor-based detection (high confidence, early return)
+        val sensorResult = classifyFromSensors(isSleeping, isInMeeting, isExercising, isCommute)
+        if (sensorResult != null) return sensorResult
 
-        // Priority 2: Meeting detection from calendar
-        if (isInMeeting) {
-            return "meeting" to 0.82
-        }
-
-        // Priority 3: Exercise detection from health data
-        if (isExercising) {
-            return "exercise" to 0.80
-        }
-
-        // Priority 4: Commute detection
-        if (isCommute) {
-            return "commute" to 0.75
-        }
-
-        // Minimum duration threshold - if app usage is too short, use previous activity or unknown
-        if (foregroundDurationSeconds < MINIMUM_ACTIVITY_DURATION_SECONDS) {
-            // For background audio apps, don't classify as their category
-            if (isBackgroundAudioApp) {
-                // Keep classification based on other signals
-                return "unknown" to 0.40
-            }
+        // Minimum duration threshold for background audio apps
+        if (foregroundDurationSeconds < MINIMUM_ACTIVITY_DURATION_SECONDS && isBackgroundAudioApp) {
+            return "unknown" to 0.40
         }
 
         // Priority 5: Focus-based classification
-        var activity = "unknown"
-        var confidence = 0.5
-
-        if (focusActive && currentAppCategory == "productivity" && appSwitchCount < 4) {
-            activity = "deep_work"
-            confidence = 0.81
-        } else if (focusActive && currentAppCategory == "productivity") {
-            activity = "shallow_work"
-            confidence = 0.70
-        } else if (focusActive && currentAppCategory == "browser" && appSwitchCount > 5) {
-            activity = "shallow_work"
-            confidence = 0.65
-        } else if (focusActive && currentAppCategory == "education") {
-            activity = "learning"
-            confidence = 0.78
-        } else if (focusActive && currentAppCategory == "browser") {
-            activity = "learning"
-            confidence = 0.60
-        }
+        val focusResult = classifyFromFocus(focusActive, currentAppCategory, appSwitchCount)
+        if (focusResult != null) return applyConfidenceModifiers(focusResult, notificationsLast15m, focusActive)
 
         // Priority 6: Category-based classification
-        if (activity == "unknown") {
-            when (currentAppCategory) {
-                "communication" -> {
-                    activity = "communication"
-                    confidence = 0.75
-                }
-                "social" -> {
-                    if (focusActive) {
-                        activity = "distraction"
-                        confidence = 0.80
-                    } else {
-                        activity = "social"
-                        confidence = 0.70
-                    }
-                }
-                "entertainment" -> {
-                    activity = "leisure"
-                    confidence = 0.65
-                }
-                "browser" -> {
-                    activity = if (appSwitchCount > 5) "shallow_work" else "learning"
-                    confidence = 0.60
-                }
-                "news" -> {
-                    activity = "learning"
-                    confidence = 0.55
-                }
-                "education" -> {
-                    activity = "learning"
-                    confidence = 0.72
-                }
-                "health" -> {
-                    activity = "break"
-                    confidence = 0.60
-                }
-                "system", "tools" -> {
-                    activity = "admin"
-                    confidence = 0.55
-                }
-                "navigation" -> {
-                    activity = "commute"
-                    confidence = 0.70
-                }
-                "shopping" -> {
-                    activity = "break"
-                    confidence = 0.55
-                }
-                "calendar" -> {
-                    activity = "planning"
-                    confidence = 0.70
-                }
-                "email" -> {
-                    activity = "communication"
-                    confidence = 0.72
-                }
-            }
+        val categoryResult = classifyFromCategory(currentAppCategory, focusActive, appSwitchCount)
+        return applyConfidenceModifiers(categoryResult, notificationsLast15m, focusActive)
+    }
+
+    /**
+     * Priority 1-4: Sensor-based detection (sleep, meeting, exercise, commute).
+     * Returns null if none match, allowing fallthrough to app-based classification.
+     */
+    private fun classifyFromSensors(
+        isSleeping: Boolean,
+        isInMeeting: Boolean,
+        isExercising: Boolean,
+        isCommute: Boolean
+    ): Pair<String, Double>? {
+        if (isSleeping) return "sleep" to 0.85
+        if (isInMeeting) return "meeting" to 0.82
+        if (isExercising) return "exercise" to 0.80
+        if (isCommute) return "commute" to 0.75
+        return null
+    }
+
+    /**
+     * Priority 5: Focus-based classification.
+     * Returns null if focus is inactive or category doesn't match.
+     */
+    private fun classifyFromFocus(
+        focusActive: Boolean,
+        currentAppCategory: String,
+        appSwitchCount: Int
+    ): Pair<String, Double>? {
+        if (!focusActive) return null
+
+        return when {
+            currentAppCategory == "productivity" && appSwitchCount < 4 -> "deep_work" to 0.81
+            currentAppCategory == "productivity" -> "shallow_work" to 0.70
+            currentAppCategory == "browser" && appSwitchCount > 5 -> "shallow_work" to 0.65
+            currentAppCategory == "education" -> "learning" to 0.78
+            currentAppCategory == "browser" -> "learning" to 0.60
+            else -> null
         }
+    }
+
+    /**
+     * Priority 6: Category-based classification (no focus active).
+     */
+    private fun classifyFromCategory(
+        currentAppCategory: String,
+        focusActive: Boolean,
+        appSwitchCount: Int
+    ): Pair<String, Double> {
+        return when (currentAppCategory) {
+            "communication", "email" -> "communication" to 0.75
+            "social" -> if (focusActive) "distraction" to 0.80 else "social" to 0.70
+            "entertainment" -> "leisure" to 0.65
+            "browser" -> if (appSwitchCount > 5) "shallow_work" to 0.60 else "learning" to 0.60
+            "news", "education" -> "learning" to if (currentAppCategory == "education") 0.72 else 0.55
+            "health" -> "break" to 0.60
+            "system", "tools" -> "admin" to 0.55
+            "navigation" -> "commute" to 0.70
+            "shopping" -> "break" to 0.55
+            "calendar" -> "planning" to 0.70
+            else -> "unknown" to 0.50
+        }
+    }
+
+    /**
+     * Applies notification penalty and focus bonus to confidence.
+     */
+    private fun applyConfidenceModifiers(
+        result: Pair<String, Double>,
+        notificationsLast15m: Int,
+        focusActive: Boolean
+    ): Pair<String, Double> {
+        var confidence = result.second
 
         // Penalty for high notification load (interruptions)
         if (notificationsLast15m > 10) {
@@ -442,11 +422,11 @@ class ContextInferenceEngine @Inject constructor() {
         }
 
         // Bonus for consistent signals
-        if (focusActive && activity in listOf("deep_work", "shallow_work", "learning")) {
+        if (focusActive && result.first in listOf("deep_work", "shallow_work", "learning")) {
             confidence = (confidence * 1.1).coerceAtMost(0.95)
         }
 
-        return Pair(activity, confidence.coerceIn(0.0, 1.0))
+        return result.first to confidence.coerceIn(0.0, 1.0)
     }
 
     private fun calculateDistractionProbability(
