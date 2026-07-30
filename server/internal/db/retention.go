@@ -83,6 +83,8 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 
 	prune("events", "received_at", policy.RawEventsDays)
 	prune("timeline_segments", "received_at", policy.TimelineSegmentsDays)
+	prune("daily_summary", "updated_at", policy.DailySummariesDays)
+	prune("weekly_summary", "updated_at", policy.WeeklySummariesDays)
 	prune("five_minute_summary", "start_time", policy.FiveMinuteSummariesDays)
 	prune("hourly_summary", "start_time", policy.HourlySummariesDays)
 	prune("agent_observations", "created_at", policy.AgentObservationsDays)
