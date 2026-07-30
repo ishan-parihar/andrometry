@@ -201,6 +201,12 @@ class SegmentEngine @Inject constructor(
 
     /**
      * Classifies activity from app category and context.
+     * Uses the same enhanced logic as ContextInferenceEngine for consistency.
+     * 
+     * Priority order:
+     * 1. Focus-based (deep_work, shallow_work, learning)
+     * 2. Category-based (communication, social, leisure, etc.)
+     * 
      * Returns (activity_label, confidence).
      */
     private fun classifyActivity(
@@ -216,15 +222,37 @@ class SegmentEngine @Inject constructor(
 
         val notifCount = notifEvents.size
 
-        return when {
-            isFocusActive && dominantCategory == "productivity" && appSwitchCount < 4 -> "deep_work" to 0.81
-            isFocusActive && dominantCategory == "productivity" -> "shallow_work" to 0.70
-            dominantCategory == "communication" -> "communication" to 0.75
-            dominantCategory == "social" && isFocusActive -> "distraction" to 0.80
-            dominantCategory == "social" -> "social" to 0.70
-            dominantCategory == "entertainment" -> "leisure" to 0.65
-            dominantCategory == "browser" && appSwitchCount > 5 -> "shallow_work" to 0.60
-            dominantCategory == "system" -> "admin" to 0.55
+        // Priority 1: Focus-based classification
+        if (isFocusActive && dominantCategory == "productivity" && appSwitchCount < 4) {
+            return "deep_work" to 0.81
+        }
+        if (isFocusActive && dominantCategory == "productivity") {
+            return "shallow_work" to 0.70
+        }
+        if (isFocusActive && dominantCategory == "browser" && appSwitchCount > 5) {
+            return "shallow_work" to 0.65
+        }
+        if (isFocusActive && dominantCategory == "education") {
+            return "learning" to 0.78
+        }
+        if (isFocusActive && dominantCategory == "browser") {
+            return "learning" to 0.60
+        }
+
+        // Priority 2: Category-based classification
+        return when (dominantCategory) {
+            "communication" -> "communication" to 0.75
+            "social" -> if (isFocusActive) "distraction" to 0.80 else "social" to 0.70
+            "entertainment" -> "leisure" to 0.65
+            "browser" -> if (appSwitchCount > 5) "shallow_work" to 0.60 else "learning" to 0.55
+            "news" -> "learning" to 0.55
+            "education" -> "learning" to 0.72
+            "health" -> "break" to 0.60
+            "system", "tools" -> "admin" to 0.55
+            "navigation" -> "commute" to 0.70
+            "shopping" -> "break" to 0.55
+            "calendar" -> "planning" to 0.70
+            "email" -> "communication" to 0.72
             else -> "unknown" to 0.40
         }
     }

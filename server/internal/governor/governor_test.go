@@ -44,6 +44,9 @@ func TestEvaluate_ApprovedWhenNoLimitsHit(t *testing.T) {
 	defer database.Close()
 
 	policy := DefaultPolicy()
+	policy.CooldownMinutes = 0 // Disable cooldown
+	policy.QuietHoursStart = "00:00"
+	policy.QuietHoursEnd = "00:00" // Disable quiet hours
 	approved, reason := Evaluate(database, "user1", policy, "medium")
 
 	if !approved {
@@ -61,6 +64,8 @@ func TestEvaluate_DailyLimitReached(t *testing.T) {
 	policy := DefaultPolicy()
 	policy.MaxInterventionsPerDay = 2
 	policy.CooldownMinutes = 0 // Disable cooldown for this test
+	policy.QuietHoursStart = "00:00"
+	policy.QuietHoursEnd = "00:00" // Disable quiet hours
 
 	// Create 2 interventions to hit the limit
 	for i := 0; i < 2; i++ {

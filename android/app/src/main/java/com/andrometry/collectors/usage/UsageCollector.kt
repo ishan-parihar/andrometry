@@ -6,6 +6,7 @@ import android.content.Context
 import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.EventEntity
 import com.andrometry.core.database.SequenceGenerator
+import com.andrometry.inference.classifier.AppCategoryEngine
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -16,10 +17,13 @@ import javax.inject.Inject
  *
  * Respects sensitive mode: when active, top_apps are redacted to categories only.
  * Default cadence: 15 minutes (balanced), 1-5 minutes (active mode).
+ *
+ * Classification is delegated to AppCategoryEngine for unified categorization.
  */
 class UsageCollector @Inject constructor(
     private val sequenceGenerator: SequenceGenerator,
-    private val sensitiveModeManager: SensitiveModeManager
+    private val sensitiveModeManager: SensitiveModeManager,
+    private val appCategoryEngine: AppCategoryEngine
 ) {
     data class AppUsage(
         val packageName: String,
@@ -68,14 +72,14 @@ class UsageCollector @Inject constructor(
             }
         }
 
-        // Classify by category
+        // Classify by category using unified AppCategoryEngine
         val byCategory = mutableMapOf<String, Long>()
         val topApps = mutableListOf<AppUsage>()
 
         for ((pkg, durationMs) in usageMap) {
             if (pkg.endsWith("_start")) continue
             val seconds = durationMs / 1000
-            val category = classifyPackage(pkg)
+            val category = classifyPackage(context, pkg)
             byCategory[category] = (byCategory[category] ?: 0L) + seconds
             topApps.add(AppUsage(pkg, category, seconds))
         }
@@ -121,69 +125,11 @@ class UsageCollector @Inject constructor(
 
     /**
      * Classifies a package into a category.
-     * Uses Android's app category + known package mappings.
+     * Delegates to AppCategoryEngine for unified classification.
+     * Uses exact package matching + Android category + user overrides.
      */
-    private fun classifyPackage(packageName: String): String {
-        // Known package classifications
-        return when {
-            // Productivity
-            packageName.contains("notion") || packageName.contains("todoist") ||
-            packageName.contains("asana") || packageName.contains("trello") ||
-            packageName.contains("jira") || packageName.contains("confluence") ||
-            packageName.contains("google.docs") || packageName.contains("google.sheets") ||
-            packageName.contains("google.slides") || packageName.contains("ms.office") ||
-            packageName.contains("obsidian") -> "productivity"
-
-            // Communication
-            packageName.contains("slack") || packageName.contains("teams") ||
-            packageName.contains("discord") || packageName.contains("telegram") ||
-            packageName.contains("whatsapp") || packageName.contains("messenger") ||
-            packageName.contains("signal") || packageName.contains("zoom") ||
-            packageName.contains("meet") || packageName.contains("skype") ||
-            packageName.contains("gmail") || packageName.contains("outlook") -> "communication"
-
-            // Browser
-            packageName.contains("chrome") || packageName.contains("firefox") ||
-            packageName.contains("samsung.internet") || packageName.contains("brave") ->
-                "browser"
-
-            // Social
-            packageName.contains("twitter") || packageName.contains("instagram") ||
-            packageName.contains("facebook") || packageName.contains("reddit") ||
-            packageName.contains("tiktok") || packageName.contains("linkedin") ||
-            packageName.contains("threads") -> "social"
-
-            // Entertainment
-            packageName.contains("youtube") || packageName.contains("netflix") ||
-            packageName.contains("spotify") || packageName.contains("prime") ||
-            packageName.contains("disney") || packageName.contains("twitch") ->
-                "entertainment"
-
-            // News
-            packageName.contains("news") || packageName.contains("bbc") ||
-            packageName.contains("cnn") || packageName.contains("reuters") ||
-            packageName.contains("flipboard") -> "news"
-
-            // Finance
-            packageName.contains("bank") || packageName.contains("finance") ||
-            packageName.contains("wallet") || packageName.contains("pay") ||
-            packageName.contains("crypto") -> "finance"
-
-            // Health
-            packageName.contains("health") || packageName.contains("fit") ||
-            packageName.contains("strava") || packageName.contains("fitness") ->
-                "health"
-
-            // Maps/Travel
-            packageName.contains("maps") || packageName.contains("uber") ||
-            packageName.contains("lyft") || packageName.contains("travel") ||
-            packageName.contains("booking") -> "travel"
-
-            // System
-            packageName.contains("android") || packageName.contains("google.android") ||
-            packageName.contains("samsung.android") -> "system"
-
-            else -> "unknown"
-        }
+    private suspend fun classifyPackage(context: Context, packageName: String): String {
+        val classification = appCategoryEngine.classify(context, packageName)
+        return classification.category
     }
 }

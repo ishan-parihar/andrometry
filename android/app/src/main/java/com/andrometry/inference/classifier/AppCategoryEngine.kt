@@ -83,6 +83,64 @@ class AppCategoryEngine @Inject constructor(
         // System
         "com.android.settings" to AppClassification("com.android.settings", "system", "settings", "neutral", "known"),
         "com.android.systemui" to AppClassification("com.android.systemui", "system", "ui", "neutral", "known"),
+        "com.android.launcher" to AppClassification("com.android.launcher", "system", "launcher", "neutral", "known"),
+        "com.google.android.apps.nexuslauncher" to AppClassification("com.google.android.apps.nexuslauncher", "system", "launcher", "neutral", "known"),
+
+        // Education
+        "com.duolingo" to AppClassification("com.duolingo", "education", "language", "aligned", "known"),
+        "com.coursera.android" to AppClassification("com.coursera.android", "education", "courses", "aligned", "known"),
+        "org.khanacademy" to AppClassification("org.khanacademy", "education", "learning", "aligned", "known"),
+
+        // Shopping
+        "com.amazon.mShop.android.shopping" to AppClassification("com.amazon.mShop.android.shopping", "shopping", "retail", "neutral", "known"),
+        "com.ebay.mobile" to AppClassification("com.ebay.mobile", "shopping", "marketplace", "neutral", "known"),
+
+        // Finance
+        "com.paypal.android.p2pmobile" to AppClassification("com.paypal.android.p2pmobile", "finance", "payments", "neutral", "known"),
+        "com.venmo" to AppClassification("com.venmo", "finance", "payments", "neutral", "known"),
+        "com.robinhood.gold" to AppClassification("com.robinhood.gold", "finance", "trading", "neutral", "known"),
+
+        // Navigation
+        "com.google.android.apps.maps" to AppClassification("com.google.android.apps.maps", "navigation", "maps", "neutral", "known"),
+        "com.waze" to AppClassification("com.waze", "navigation", "navigation", "neutral", "known"),
+        "com.uber.rider" to AppClassification("com.uber.rider", "navigation", "rideshare", "neutral", "known"),
+        "com.lyft.android" to AppClassification("com.lyft.android", "navigation", "rideshare", "neutral", "known"),
+
+        // Music (background audio - should not affect activity classification)
+        "com.spotify.music" to AppClassification("com.spotify.music", "entertainment", "music", "neutral", "known"),
+        "com.google.android.apps.youtube.music" to AppClassification("com.google.android.apps.youtube.music", "entertainment", "music", "neutral", "known"),
+        "com.amazon.mp3" to AppClassification("com.amazon.mp3", "entertainment", "music", "neutral", "known"),
+        "com.apple.android.music" to AppClassification("com.apple.android.music", "entertainment", "music", "neutral", "known"),
+
+        // Email (separate from communication)
+        "com.google.android.gm" to AppClassification("com.google.android.gm", "email", "gmail", "aligned", "known"),
+        "com.microsoft.office.outlook" to AppClassification("com.microsoft.office.outlook", "email", "outlook", "aligned", "known"),
+        "com.yahoo.mobile.client.android.mail" to AppClassification("com.yahoo.mobile.client.android.mail", "email", "yahoo", "neutral", "known"),
+
+        // Calendar
+        "com.google.android.calendar" to AppClassification("com.google.android.calendar", "calendar", "google_calendar", "aligned", "known"),
+        "com.microsoft.office.outlook.calendar" to AppClassification("com.microsoft.office.outlook.calendar", "calendar", "outlook_calendar", "aligned", "known"),
+
+        // Health & Fitness
+        "com.google.android.apps.fitness" to AppClassification("com.google.android.apps.fitness", "health", "fitness_tracking", "aligned", "known"),
+        "com.strava" to AppClassification("com.strava", "health", "running", "aligned", "known"),
+        "com.nike.plus" to AppClassification("com.nike.plus", "health", "running", "aligned", "known"),
+        "com.myfitnesspal" to AppClassification("com.myfitnesspal", "health", "nutrition", "aligned", "known"),
+    )
+
+    /**
+     * Background audio apps that should not affect activity classification.
+     * These are ignored when determining the foreground activity.
+     */
+    private val backgroundAudioApps = setOf(
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
+        "com.amazon.mp3",
+        "com.apple.android.music",
+        "com.pandora.android",
+        "comdeezer.android.app",
+        "com.tidal",
+        "com.soundcloud.android"
     )
 
     /**
@@ -130,6 +188,13 @@ class AppCategoryEngine @Inject constructor(
             alignment = "neutral",
             source = "heuristic"
         )
+    }
+
+    /**
+     * Checks if an app is a background audio app that should be excluded from activity classification.
+     */
+    fun isBackgroundAudioApp(packageName: String): Boolean {
+        return packageName in backgroundAudioApps
     }
 
     /**
