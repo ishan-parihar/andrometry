@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:batch_ingestion_response",
+  "title": "Batch Ingestion Response",
+  "description": "Server response to batch ingestion per §17.2",
+  "type": "object",
+  "required": ["accepted_events", "rejected_events", "accepted_segments", "accepted_summaries", "server_time"],
+  "properties": {
+    "accepted_events": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of events accepted"
+    },
+    "rejected_events": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of events rejected (duplicates)"
+    },
+    "accepted_segments": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of segments accepted"
+    },
+    "accepted_summaries": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of summaries accepted"
+    },
+    "missing_sequences": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Detected missing sequence numbers for backfill"
+    },
+    "pending_interventions": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of pending interventions for device to fetch"
+    },
+    "server_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server timestamp"
+    }
+  }
+}

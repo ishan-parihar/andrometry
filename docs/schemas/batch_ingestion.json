@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "andrometry:batch_ingestion",
+  "title": "Batch Ingestion Request",
+  "description": "Device batch ingestion request per §17.2",
+  "type": "object",
+  "required": ["device_id", "batch_id", "sequence_start", "sequence_end"],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "description": "Device identifier"
+    },
+    "batch_id": {
+      "type": "string",
+      "description": "Unique batch identifier (UUID)"
+    },
+    "client_version": {
+      "type": "string",
+      "description": "Client app version"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+    },
+    "sequence_start": {
+      "type": "integer",
+      "description": "First sequence number in batch"
+    },
+    "sequence_end": {
+      "type": "integer",
+      "description": "Last sequence number in batch"
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when batch was sent"
+    },
+    "events": {
+      "type": "array",
+      "description": "Array of event envelopes",
+      "items": {
+        "$ref": "events/event_envelope.json"
+      }
+    },
+    "segments": {
+      "type": "array",
+      "description": "Array of timeline segments",
+      "items": {
+        "$ref": "segments/timeline_segment.json"
+      }
+    },
+    "summaries": {
+      "type": "array",
+      "description": "Array of summary objects (daily, weekly, five-minute, hourly)"
+    },
+    "context": {
+      "type": "object",
+      "description": "Current context snapshot"
+    },
+    "device_state": {
+      "type": "object",
+      "description": "Device state at time of batch",
+      "properties": {
+        "battery": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "charging": {
+          "type": "boolean"
+        },
+        "storage_free_mb": {
+          "type": "integer"
+        },
+        "queue_size": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
