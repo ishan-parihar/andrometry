@@ -1372,3 +1372,128 @@ paths:
             application/json:
               schema:
                 type: object
+
+  /v1/corrections/feedback:
+    get:
+      summary: Get aggregated correction statistics for classification feedback loop
+      tags: [Corrections]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Correction statistics with label adjustments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label_corrections:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  total_corrections:
+                    type: integer
+                  total_segments:
+                    type: integer
+                  correction_rate:
+                    type: number
+                  suggested_adjustments:
+                    type: object
+                    additionalProperties:
+                      type: number
+    post:
+      summary: Submit correction feedback (closes the feedback loop)
+      tags: [Corrections]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                segment_id:
+                  type: string
+                old_label:
+                  type: string
+                new_label:
+                  type: string
+                reason:
+                  type: string
+              required: [segment_id, new_label]
+      responses:
+        "201":
+          description: Correction feedback recorded and applied
+
+  /v1/preferences:
+    get:
+      summary: Get user preferences (alignment weights, classification overrides)
+      tags: [Preferences]
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by category (e.g., alignment, classification)
+      responses:
+        "200":
+          description: User preferences grouped by category
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties:
+                        type: string
+    put:
+      summary: Upsert one or more user preferences
+      tags: [Preferences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferences:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      category:
+                        type: string
+                      key:
+                        type: string
+                      value:
+                        type: string
+                    required: [category, key, value]
+              required: [preferences]
+      responses:
+        "200":
+          description: Preferences updated
+
+  /v1/preferences/{category}/{key}:
+    delete:
+      summary: Delete a single user preference
+      tags: [Preferences]
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Preference deleted

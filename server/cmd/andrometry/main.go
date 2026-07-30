@@ -176,6 +176,15 @@ func main() {
 	mux.Handle("DELETE /v1/corrections/{id}", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.DeleteUserCorrection))))
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
+	// Correction feedback loop (P1)
+	mux.Handle("GET /v1/corrections/feedback", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetCorrectionFeedback))))
+	mux.Handle("POST /v1/corrections/feedback", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostCorrectionFeedback))))
+
+	// User preferences (P1: configurable alignment weights)
+	mux.Handle("GET /v1/preferences", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.GetPreferences))))
+	mux.Handle("PUT /v1/preferences", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.PutPreferences))))
+	mux.Handle("DELETE /v1/preferences/{category}/{key}", auth(middleware.RequireScope("device:read_config")(http.HandlerFunc(h.DeletePreference))))
+
 	// Token rotation and revocation (§28)
 	// Accepts both device:ingest and agent:interventions:write scopes
 	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireAnyScope("device:ingest", "agent:interventions:write")(http.HandlerFunc(h.PostTokenRotation))))

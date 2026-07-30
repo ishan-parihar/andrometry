@@ -3,6 +3,7 @@ package db
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -1203,6 +1204,136 @@ func (db *DB) SaveSensitiveModeSettings(settingsJSON string) error {
 			updated_at = datetime('now')
 	`, settingsJSON)
 	return err
+}
+
+// --- User Preferences (alignment weights, classification overrides) ---
+
+// UserPreference represents a single user preference key-value pair.
+type UserPreference struct {
+	PreferenceID string `json:"preference_id"`
+	UserID       string `json:"user_id"`
+	Category     string `json:"category"`
+	Key          string `json:"key"`
+	Value        string `json:"value"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+// UpsertPreference inserts or updates a user preference (atomic upsert).
+func (db *DB) UpsertPreference(userID, category, key, value string) error {
+	_, err := db.Exec(`
+		INSERT INTO user_preferences (preference_id, user_id, category, key, value, updated_at)
+		VALUES (?, ?, ?, ?, ?, datetime('now'))
+		ON CONFLICT(user_id, category, key) DO UPDATE SET
+			value = excluded.value,
+			updated_at = datetime('now')
+	`, uuid.New().String(), userID, category, key, value)
+	return err
+}
+
+// GetPreferences retrieves all preferences for a user, optionally filtered by category.
+func (db *DB) GetPreferences(userID, category string) ([]UserPreference, error) {
+	query := `SELECT preference_id, user_id, category, key, value, updated_at FROM user_preferences WHERE user_id = ?`
+	args := []interface{}{userID}
+	if category != "" {
+		query += " AND category = ?"
+		args = append(args, category)
+	}
+	query += " ORDER BY category, key"
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prefs []UserPreference
+	for rows.Next() {
+		var p UserPreference
+		if err := rows.Scan(&p.PreferenceID, &p.UserID, &p.Category, &p.Key, &p.Value, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		prefs = append(prefs, p)
+	}
+	return prefs, nil
+}
+
+// GetPreference retrieves a single preference by category and key.
+func (db *DB) GetPreference(userID, category, key string) (*UserPreference, error) {
+	var p UserPreference
+	err := db.QueryRow(`
+		SELECT preference_id, user_id, category, key, value, updated_at
+		FROM user_preferences
+		WHERE user_id = ? AND category = ? AND key = ?
+	`, userID, category, key).Scan(&p.PreferenceID, &p.UserID, &p.Category, &p.Key, &p.Value, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// DeletePreference deletes a user preference by category and key.
+func (db *DB) DeletePreference(userID, category, key string) error {
+	_, err := db.Exec(`DELETE FROM user_preferences WHERE user_id = ? AND category = ? AND key = ?`, userID, category, key)
+	return err
+}
+
+// DeletePreferencesByCategory deletes all preferences in a category for a user.
+func (db *DB) DeletePreferencesByCategory(userID, category string) error {
+	_, err := db.Exec(`DELETE FROM user_preferences WHERE user_id = ? AND category = ?`, userID, category)
+	return err
+}
+
+// CountSegments returns the total number of timeline segments for a user.
+func (db *DB) CountSegments(userID string) (int, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM timeline_segments WHERE user_id = ?`, userID).Scan(&count)
+	return count, err
+}
+
+// GetCorrectionStats returns correction counts by corrected_label for feedback loop.
+func (db *DB) GetCorrectionStats(userID string, limit int) ([]map[string]interface{}, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := db.Query(`
+		SELECT metadata FROM audit_log
+		WHERE user_id = ? AND action = 'correction'
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	labelCounts := make(map[string]int)
+	for rows.Next() {
+		var metadata string
+		if err := rows.Scan(&metadata); err != nil {
+			continue
+		}
+		// Parse metadata to extract new_label
+		var correction map[string]interface{}
+		if json.Unmarshal([]byte(metadata), &correction) == nil {
+			if newLabel, ok := correction["new_label"].(string); ok && newLabel != "" {
+				labelCounts[newLabel]++
+			}
+			if oldLabel, ok := correction["old_label"].(string); ok && oldLabel != "" {
+				labelCounts[oldLabel]--
+			}
+		}
+	}
+
+	var results []map[string]interface{}
+	for label, count := range labelCounts {
+		if count > 0 {
+			results = append(results, map[string]interface{}{
+				"label":          label,
+				"correction_count": count,
+			})
+		}
+	}
+	return results, nil
 }
 
 // --- DB Stats for Health Endpoint ---

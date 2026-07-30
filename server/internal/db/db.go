@@ -250,6 +250,17 @@ func (db *DB) migrate() error {
 			settings TEXT NOT NULL DEFAULT '{}',
 			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)`,
+		// User preferences (alignment weights, classification overrides)
+		`CREATE TABLE IF NOT EXISTS user_preferences (
+			preference_id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'primary',
+			category TEXT NOT NULL,
+			key TEXT NOT NULL,
+			value TEXT NOT NULL,
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(user_id, category, key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_prefs_user_cat ON user_preferences(user_id, category)`,
 	}
 
 	for _, m := range migrations {
