@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/andrometry/server/internal/db"
@@ -15,25 +19,76 @@ import (
 	"github.com/google/uuid"
 )
 
+// Config holds server configuration loaded from config.toml or defaults.
+type Config struct {
+	Address          string
+	DatabasePath     string
+	BootstrapToken   string
+	MaxBatchEvents   int
+	MaxBatchSegments int
+	MaxBatchSummaries int
+	Retention        db.RetentionPolicy
+	Policy           governor.Policy
+	SSEEnabled       bool
+	SSEPollSeconds   int
+}
+
+// DefaultConfig returns production-ready defaults matching config.toml.
+func DefaultConfig() Config {
+	return Config{
+		Address:           "0.0.0.0:8420",
+		DatabasePath:      "andrometry.db",
+		MaxBatchEvents:    500,
+		MaxBatchSegments:  100,
+		MaxBatchSummaries: 50,
+		Retention:         db.DefaultRetentionPolicy(),
+		Policy:            governor.DefaultPolicy(),
+		SSEEnabled:        true,
+		SSEPollSeconds:    5,
+	}
+}
+
 func main() {
-	dbPath := flag.String("db", "andrometry.db", "SQLite database path")
-	port := flag.Int("port", 8420, "HTTP server port")
+	// CLI flags override config defaults
+	configPath := flag.String("config", "", "Path to config.toml (optional)")
+	dbPath := flag.String("db", "", "SQLite database path (overrides config)")
+	port := flag.Int("port", 0, "HTTP server port (overrides config)")
 	bootstrapToken := flag.String("bootstrap-token", "", "Bootstrap a device token on first run")
 	flag.Parse()
 
+	// Load config (config.toml support — if file exists, parse it; otherwise use defaults)
+	cfg := DefaultConfig()
+
+	// CLI flags take precedence over config
+	if *dbPath != "" {
+		cfg.DatabasePath = *dbPath
+	}
+	if *port > 0 {
+		cfg.Address = fmt.Sprintf(":%d", *port)
+	}
+	if *bootstrapToken != "" {
+		cfg.BootstrapToken = *bootstrapToken
+	}
+
+	// Warn if config.toml is provided but we're using hardcoded defaults
+	if *configPath != "" {
+		log.Printf("[config] note: config.toml parsing not yet implemented, using defaults + CLI flags")
+	}
+
 	// Open database
-	database, err := db.Open(*dbPath)
+	database, err := db.Open(cfg.DatabasePath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
 	defer database.Close()
 
 	// Bootstrap token if requested
-	if *bootstrapToken != "" {
-		bootstrapDeviceToken(database, *bootstrapToken)
+	if cfg.BootstrapToken != "" {
+		bootstrapDeviceToken(database, cfg.BootstrapToken)
 	}
 
 	h := handlers.NewHandler(database)
+	h.SetBatchLimits(cfg.MaxBatchEvents, cfg.MaxBatchSegments, cfg.MaxBatchSummaries)
 	auth := middleware.Auth(database)
 
 	// Router
@@ -112,13 +167,14 @@ func main() {
 	mux.Handle("POST /v1/corrections", auth(middleware.RequireScope("device:write_feedback")(http.HandlerFunc(h.PostUserCorrection))))
 
 	// Token rotation and revocation (§28)
-	// NOTE: These endpoints use device:ingest scope. Agent tokens cannot rotate themselves.
-	// Design: device rotates, agent reads. If agents need self-rotation, add separate routes.
 	mux.Handle("POST /v1/auth/rotate", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRotation))))
 	mux.Handle("POST /v1/auth/revoke", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.PostTokenRevoke))))
 
 	// SSE stream for real-time context updates (§21)
-	mux.Handle("GET /v1/stream", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.StreamContext))))
+	if cfg.SSEEnabled {
+		h.SetSSEPollInterval(time.Duration(cfg.SSEPollSeconds) * time.Second)
+		mux.Handle("GET /v1/stream", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.StreamContext))))
+	}
 
 	// Work Pattern Metrics (§39)
 	mux.Handle("GET /v1/metrics/work-patterns", auth(middleware.RequireScope("agent:summaries:read")(http.HandlerFunc(h.GetWorkPatternMetrics))))
@@ -148,7 +204,7 @@ func main() {
 	// Data Quality (§11.4)
 	mux.Handle("GET /v1/context/data-quality", auth(middleware.RequireScope("agent:context:read")(http.HandlerFunc(h.GetDataQuality))))
 
-	// Agent Effectiveness (§35) — read-only endpoint, uses read scope
+	// Agent Effectiveness (§35)
 	mux.Handle("GET /v1/agents/{agent_id}/effectiveness", auth(middleware.RequireScope("agent:interventions:read")(http.HandlerFunc(h.GetAgentEffectiveness))))
 
 	// Privacy / Sensitive mode
@@ -160,16 +216,18 @@ func main() {
 	handler := middleware.CORS(middleware.Logging(mux))
 
 	// Enforce retention policy on startup
-	if err := database.EnforceRetentionPolicy(db.DefaultRetentionPolicy()); err != nil {
+	if err := database.EnforceRetentionPolicy(cfg.Retention); err != nil {
 		log.Printf("[retention] warning: failed to enforce policy: %v", err)
 	}
 
 	// Periodic retention enforcement every 24 hours
+	retentionDone := make(chan struct{})
 	go func() {
+		defer close(retentionDone)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
-			if err := database.EnforceRetentionPolicy(db.DefaultRetentionPolicy()); err != nil {
+			if err := database.EnforceRetentionPolicy(cfg.Retention); err != nil {
 				log.Printf("[retention] warning: periodic enforcement failed: %v", err)
 			} else {
 				log.Println("[retention] periodic enforcement complete")
@@ -177,19 +235,50 @@ func main() {
 		}
 	}()
 
-	addr := fmt.Sprintf(":%d", *port)
+	// Graceful shutdown (§31)
+	addr := cfg.Address
 	log.Printf("[andrometry] relay server starting on %s", addr)
-	log.Printf("[andrometry] database: %s", *dbPath)
-	log.Printf("[andrometry] default policy: max_interventions=%d, cooldown=%dm, quiet_hours=%s-%s",
-		governor.DefaultPolicy().MaxInterventionsPerDay,
-		governor.DefaultPolicy().CooldownMinutes,
-		governor.DefaultPolicy().QuietHoursStart,
-		governor.DefaultPolicy().QuietHoursEnd,
+	log.Printf("[andrometry] database: %s", cfg.DatabasePath)
+	log.Printf("[andrometry] batch limits: events=%d, segments=%d, summaries=%d",
+		cfg.MaxBatchEvents, cfg.MaxBatchSegments, cfg.MaxBatchSummaries)
+	log.Printf("[andrometry] policy: max_interventions=%d, cooldown=%dm, quiet_hours=%s-%s",
+		cfg.Policy.MaxInterventionsPerDay,
+		cfg.Policy.CooldownMinutes,
+		cfg.Policy.QuietHoursStart,
+		cfg.Policy.QuietHoursEnd,
 	)
 
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("server failed: %v", err)
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+
+	// Start server in goroutine
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server failed: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-quit
+	log.Printf("[andrometry] received signal %v, shutting down gracefully...", sig)
+
+	// Shutdown with 30s deadline
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("[andrometry] forced shutdown: %v", err)
+	}
+
+	log.Println("[andrometry] server stopped")
 }
 
 func bootstrapDeviceToken(database *db.DB, rawToken string) {

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"github.com/andrometry/server/internal/models"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ func (db *DB) CreateToken(t *models.AuthToken) error {
 	return err
 }
 
-// ValidateToken checks if a token hash is valid and returns its info.
+// ValidateToken checks if a token hash is valid, not revoked, and not expired.
 func (db *DB) ValidateToken(tokenHash string) (*models.AuthToken, error) {
 	var t models.AuthToken
 	err := db.QueryRow(`
@@ -47,15 +48,23 @@ func (db *DB) ValidateToken(tokenHash string) (*models.AuthToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("token not found or revoked")
 	}
+	// Check expiry if set
+	if t.ExpiresAt != nil && *t.ExpiresAt != "" {
+		parsed, err := time.Parse(time.RFC3339, *t.ExpiresAt)
+		if err == nil && time.Now().UTC().After(parsed) {
+			return nil, fmt.Errorf("token expired")
+		}
+	}
 	return &t, nil
 }
 
 // HasScope checks if a token's scopes string contains the required scope.
+// Individual scope tokens are checked, and admin/wildcard on any token grants all access.
 func HasScope(scopes, required string) bool {
-	if scopes == "admin" || scopes == "*" {
-		return true
-	}
 	for _, s := range splitScopes(scopes) {
+		if s == "admin" || s == "*" {
+			return true
+		}
 		if s == required {
 			return true
 		}

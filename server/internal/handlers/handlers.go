@@ -20,17 +20,45 @@ import (
 
 // Handler holds dependencies for all HTTP handlers.
 type Handler struct {
-	DB      *db.DB
-	Policy  governor.Policy
-	Rotator *auth.TokenRotation // Token rotation manager, initialized once in NewHandler
+	DB              *db.DB
+	Policy          governor.Policy
+	Rotator         *auth.TokenRotation
+	MaxBatchEvents  int
+	MaxBatchSegments  int
+	MaxBatchSummaries int
+	SSEPollInterval time.Duration
 }
 
 // NewHandler creates a new Handler with the given database and default policy.
 func NewHandler(database *db.DB) *Handler {
 	return &Handler{
-		DB:      database,
-		Policy:  governor.DefaultPolicy(),
-		Rotator: auth.NewTokenRotation(database, 30),
+		DB:                database,
+		Policy:            governor.DefaultPolicy(),
+		Rotator:           auth.NewTokenRotation(database, 30),
+		MaxBatchEvents:    500,
+		MaxBatchSegments:  100,
+		MaxBatchSummaries: 50,
+		SSEPollInterval:   5 * time.Second,
+	}
+}
+
+// SetBatchLimits configures maximum batch sizes for ingestion.
+func (h *Handler) SetBatchLimits(events, segments, summaries int) {
+	if events > 0 {
+		h.MaxBatchEvents = events
+	}
+	if segments > 0 {
+		h.MaxBatchSegments = segments
+	}
+	if summaries > 0 {
+		h.MaxBatchSummaries = summaries
+	}
+}
+
+// SetSSEPollInterval configures the SSE polling interval.
+func (h *Handler) SetSSEPollInterval(d time.Duration) {
+	if d > 0 {
+		h.SSEPollInterval = d
 	}
 }
 

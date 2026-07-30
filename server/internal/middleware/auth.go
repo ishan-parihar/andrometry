@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/andrometry/server/internal/db"
 )
@@ -91,11 +93,13 @@ func CORS(next http.Handler) http.Handler {
 	})
 }
 
-// Logging logs incoming requests.
+// Logging logs incoming requests with method, path, status code, and latency.
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		ww := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(ww, r)
+		log.Printf("[http] %s %s %d %s", r.Method, r.URL.Path, ww.status, time.Since(start).Round(time.Millisecond))
 	})
 }
 

@@ -50,11 +50,14 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		policy.RawEventsDays, policy.TimelineSegmentsDays,
 		policy.AgentObservationsDays, policy.InterventionsDays, policy.AuditLogDays)
 
+	pruned := 0
+
 	if policy.RawEventsDays > 0 {
 		cutoff := time.Now().AddDate(0, 0, -policy.RawEventsDays).Format("2006-01-02T15:04:05Z")
 		if result, err := db.Exec("DELETE FROM events WHERE received_at < ?", cutoff); err == nil {
 			if rows, _ := result.RowsAffected(); rows > 0 {
 				log.Printf("[retention] pruned %d raw events", rows)
+				pruned += int(rows)
 			}
 		}
 	}
@@ -64,6 +67,7 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		if result, err := db.Exec("DELETE FROM timeline_segments WHERE received_at < ?", cutoff); err == nil {
 			if rows, _ := result.RowsAffected(); rows > 0 {
 				log.Printf("[retention] pruned %d timeline segments", rows)
+				pruned += int(rows)
 			}
 		}
 	}
@@ -73,6 +77,7 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		if result, err := db.Exec("DELETE FROM agent_observations WHERE created_at < ?", cutoff); err == nil {
 			if rows, _ := result.RowsAffected(); rows > 0 {
 				log.Printf("[retention] pruned %d agent observations", rows)
+				pruned += int(rows)
 			}
 		}
 	}
@@ -82,7 +87,32 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		if result, err := db.Exec("DELETE FROM interventions WHERE created_at < ?", cutoff); err == nil {
 			if rows, _ := result.RowsAffected(); rows > 0 {
 				log.Printf("[retention] pruned %d interventions", rows)
+				pruned += int(rows)
 			}
+		}
+	}
+
+	// Prune five_minute_summary (>90 days), hourly_summary (>365 days), outcomes (>90 days)
+	fiveMinCutoff := time.Now().AddDate(0, 0, -90).Format("2006-01-02T15:04:05Z")
+	if result, err := db.Exec("DELETE FROM five_minute_summary WHERE start_time < ?", fiveMinCutoff); err == nil {
+		if rows, _ := result.RowsAffected(); rows > 0 {
+			log.Printf("[retention] pruned %d five-minute summaries", rows)
+			pruned += int(rows)
+		}
+	}
+
+	hourlyCutoff := time.Now().AddDate(0, 0, -365).Format("2006-01-02T15:04:05Z")
+	if result, err := db.Exec("DELETE FROM hourly_summary WHERE start_time < ?", hourlyCutoff); err == nil {
+		if rows, _ := result.RowsAffected(); rows > 0 {
+			log.Printf("[retention] pruned %d hourly summaries", rows)
+			pruned += int(rows)
+		}
+	}
+
+	if result, err := db.Exec("DELETE FROM outcomes WHERE created_at < ?", fiveMinCutoff); err == nil {
+		if rows, _ := result.RowsAffected(); rows > 0 {
+			log.Printf("[retention] pruned %d outcomes", rows)
+			pruned += int(rows)
 		}
 	}
 
@@ -91,10 +121,14 @@ func (db *DB) EnforceRetentionPolicy(policy RetentionPolicy) error {
 		if result, err := db.Exec("DELETE FROM audit_log WHERE created_at < ?", cutoff); err == nil {
 			if rows, _ := result.RowsAffected(); rows > 0 {
 				log.Printf("[retention] pruned %d audit entries", rows)
+				pruned += int(rows)
 			}
 		}
 	}
 
+	if pruned > 0 {
+		log.Printf("[retention] total pruned: %d rows", pruned)
+	}
 	log.Println("[retention] policy enforcement complete")
 	return nil
 }
