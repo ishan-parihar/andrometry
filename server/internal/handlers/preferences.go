@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -88,7 +87,16 @@ func (h *Handler) PutPreferences(w http.ResponseWriter, r *http.Request) {
 
 	updated := 0
 	for key, val := range reqMap.Preferences {
-		valueStr := fmt.Sprintf("%v", val)
+		var valueStr string
+		if s, ok := val.(string); ok {
+			valueStr = s
+		} else {
+			bytes, err := json.Marshal(val)
+			if err != nil {
+				continue
+			}
+			valueStr = string(bytes)
+		}
 		if err := h.DB.UpsertPreference(uid, reqMap.Category, key, valueStr); err != nil {
 			continue
 		}

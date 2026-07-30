@@ -284,7 +284,12 @@ func computeDistractionProb(ctx map[string]interface{}) float64 {
 
 // computeFatigueProb estimates fatigue from time of day and sleep info.
 func computeFatigueProb(ctx map[string]interface{}) float64 {
-	hour := time.Now().UTC().Hour()
+	tz := getString(ctx, "timezone", "UTC")
+	loc, err := time.LoadLocation(tz)
+	if err != nil || loc == nil {
+		loc = time.UTC
+	}
+	hour := time.Now().In(loc).Hour()
 	// Base fatigue from circadian rhythm
 	var baseFatigue float64
 	switch {
