@@ -96,6 +96,68 @@ class ContextInferenceEngine @Inject constructor() {
     private val MINIMUM_ACTIVITY_DURATION_SECONDS = 60
 
     /**
+     * Cooldown period (seconds) before switching activity type.
+     * Prevents rapid oscillation between activities (e.g., social ↔ communication).
+     * Must sustain new activity for this duration before it takes effect.
+     */
+    private val ACTIVITY_COOLDOWN_SECONDS = 120
+
+    /**
+     * Last classified activity for hysteresis.
+     * Tracks the previous activity to apply cooldown logic.
+     */
+    private var lastActivity: String? = null
+    private var lastActivityTimestamp: Long = 0L
+
+    /**
+     * Applies temporal hysteresis: if switching to a different activity,
+     * require that the new activity has been sustained for ACTIVITY_COOLDOWN_SECONDS.
+     * Sensor-based detections (sleep, meeting, exercise, commute) bypass cooldown.
+     * When sensor condition is no longer active, cooldown is bypassed to allow transition.
+     */
+    private fun applyTemporalHysteresis(
+        newActivity: String,
+        newConfidence: Double,
+        now: Long
+    ): Pair<String, Double> {
+        // Sensor-based activities bypass cooldown (they're high-confidence signals)
+        val sensorActivities = setOf("sleep", "meeting", "exercise", "commute")
+        if (newActivity in sensorActivities) {
+            lastActivity = newActivity
+            lastActivityTimestamp = now
+            return newActivity to newConfidence
+        }
+
+        // If same activity, just update timestamp and return
+        if (newActivity == lastActivity) {
+            lastActivityTimestamp = now
+            return newActivity to newConfidence
+        }
+
+        // If previous activity was sensor-based but no longer active, bypass cooldown
+        if (lastActivity in sensorActivities) {
+            lastActivity = newActivity
+            lastActivityTimestamp = now
+            return newActivity to newConfidence
+        }
+
+        // If switching to a new activity, check cooldown
+        if (lastActivity != null && lastActivityTimestamp > 0) {
+            val elapsedSeconds = (now - lastActivityTimestamp) / 1000L
+            if (elapsedSeconds < ACTIVITY_COOLDOWN_SECONDS) {
+                // Not enough time has passed — keep the previous activity
+                // but reduce confidence slightly to signal uncertainty
+                return lastActivity!! to (newConfidence * 0.8).coerceAtLeast(0.3)
+            }
+        }
+
+        // Cooldown passed or first classification — accept new activity
+        lastActivity = newActivity
+        lastActivityTimestamp = now
+        return newActivity to newConfidence
+    }
+
+    /**
      * Infers the current context from recent events.
      * 
      * Enhanced with:
@@ -327,22 +389,28 @@ class ContextInferenceEngine @Inject constructor() {
         currentPlace: String,
         healthInfo: HealthInfo?
     ): Pair<String, Double> {
+        val now = System.currentTimeMillis()
+
         // Priority 1-4: Sensor-based detection (high confidence, early return)
         val sensorResult = classifyFromSensors(isSleeping, isInMeeting, isExercising, isCommute)
-        if (sensorResult != null) return sensorResult
+        if (sensorResult != null) return applyTemporalHysteresis(sensorResult.first, sensorResult.second, now)
 
         // Minimum duration threshold for background audio apps
         if (foregroundDurationSeconds < MINIMUM_ACTIVITY_DURATION_SECONDS && isBackgroundAudioApp) {
-            return "unknown" to 0.40
+            return applyTemporalHysteresis("unknown", 0.40, now)
         }
 
         // Priority 5: Focus-based classification
         val focusResult = classifyFromFocus(focusActive, currentAppCategory, appSwitchCount)
-        if (focusResult != null) return applyConfidenceModifiers(focusResult, notificationsLast15m, focusActive)
+        if (focusResult != null) {
+            val modified = applyConfidenceModifiers(focusResult, notificationsLast15m, focusActive)
+            return applyTemporalHysteresis(modified.first, modified.second, now)
+        }
 
         // Priority 6: Category-based classification
         val categoryResult = classifyFromCategory(currentAppCategory, focusActive, appSwitchCount)
-        return applyConfidenceModifiers(categoryResult, notificationsLast15m, focusActive)
+        val modified = applyConfidenceModifiers(categoryResult, notificationsLast15m, focusActive)
+        return applyTemporalHysteresis(modified.first, modified.second, now)
     }
 
     /**
