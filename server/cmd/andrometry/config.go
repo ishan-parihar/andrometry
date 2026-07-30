@@ -95,6 +95,15 @@ func applyConfigValue(cfg *Config, section, key, val string) {
 				cfg.MaxBatchSummaries = v
 			}
 		}
+	case "security":
+		switch key {
+		case "max_request_body_mb":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.MaxRequestBodyMB = v
+			}
+		case "cors_origin":
+			cfg.CORSOrigin = val
+		}
 	case "retention":
 		switch key {
 		case "raw_events_days":
@@ -109,6 +118,18 @@ func applyConfigValue(cfg *Config, section, key, val string) {
 			if v, err := strconv.Atoi(val); err == nil {
 				cfg.Retention.DailySummariesDays = v
 			}
+		case "weekly_summaries_days":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.Retention.WeeklySummariesDays = v
+			}
+		case "five_minute_summaries_days":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.Retention.FiveMinuteSummariesDays = v
+			}
+		case "hourly_summaries_days":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.Retention.HourlySummariesDays = v
+			}
 		case "agent_observations_days":
 			if v, err := strconv.Atoi(val); err == nil {
 				cfg.Retention.AgentObservationsDays = v
@@ -116,6 +137,14 @@ func applyConfigValue(cfg *Config, section, key, val string) {
 		case "interventions_days":
 			if v, err := strconv.Atoi(val); err == nil {
 				cfg.Retention.InterventionsDays = v
+			}
+		case "outcomes_days":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.Retention.OutcomesDays = v
+			}
+		case "user_feedback_days":
+			if v, err := strconv.Atoi(val); err == nil {
+				cfg.Retention.UserFeedbackDays = v
 			}
 		case "audit_log_days":
 			if v, err := strconv.Atoi(val); err == nil {

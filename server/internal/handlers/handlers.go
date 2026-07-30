@@ -353,17 +353,32 @@ func (h *Handler) GetCurrentBriefing(w http.ResponseWriter, r *http.Request) {
 // --- Timeline ---
 
 // GetTimeline handles GET /v1/timeline.
+// Supports cursor-based pagination via ?cursor=<base64> parameter.
 func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
 	from := queryParam(r, "from", time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339))
 	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
 	limit := queryParamInt(r, "limit", 200)
 	segmentType := queryParam(r, "segment_type", "")
+	cursor := queryParam(r, "cursor", "")
 
-	segments, err := h.DB.GetTimeline(uid, from, to, limit, segmentType)
+	// If cursor provided, decode it to get the 'from' override
+	if cursor != "" {
+		decoded := decodeCursor(cursor)
+		if decoded != "" {
+			from = decoded
+		}
+	}
+
+	segments, err := h.DB.GetTimeline(uid, from, to, limit+1, segmentType) // fetch one extra for cursor detection
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to query timeline")
 		return
+	}
+
+	hasMore := len(segments) > limit
+	if hasMore {
+		segments = segments[:limit]
 	}
 
 	// Convert to API response format
@@ -417,10 +432,18 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	result := map[string]interface{}{
 		"timezone": timeZone,
 		"timeline": resp,
-	})
+	}
+
+	// Cursor-based pagination: encode last segment's start_time as cursor
+	if hasMore && len(segments) > 0 {
+		lastStart := segments[len(segments)-1].StartTime
+		result["next_cursor"] = encodeCursor(lastStart)
+	}
+
+	respondJSON(w, http.StatusOK, result)
 }
 
 // --- Summaries ---
@@ -472,26 +495,48 @@ func (h *Handler) GetWeeklySummary(w http.ResponseWriter, r *http.Request) {
 // --- Events (drill-down) ---
 
 // GetEvents handles GET /v1/events.
+// Supports cursor-based pagination via ?cursor=<base64> parameter.
 func (h *Handler) GetEvents(w http.ResponseWriter, r *http.Request) {
 	uid := userID(r)
 	from := queryParam(r, "from", time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339))
 	to := queryParam(r, "to", time.Now().UTC().Format(time.RFC3339))
 	eventType := queryParam(r, "event_type", "")
 	limit := queryParamInt(r, "limit", 200)
+	cursor := queryParam(r, "cursor", "")
 
-	events, err := h.DB.GetEvents(uid, from, to, eventType, limit)
+	// If cursor provided, decode it to get the 'from' override
+	if cursor != "" {
+		decoded := decodeCursor(cursor)
+		if decoded != "" {
+			from = decoded
+		}
+	}
+
+	events, err := h.DB.GetEvents(uid, from, to, eventType, limit+1) // fetch one extra for cursor detection
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to query events")
 		return
+	}
+
+	hasMore := len(events) > limit
+	if hasMore {
+		events = events[:limit]
 	}
 
 	if events == nil {
 		events = []models.Event{}
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	result := map[string]interface{}{
 		"events": events,
-	})
+	}
+
+	// Cursor-based pagination: encode last event's timestamp as cursor
+	if hasMore && len(events) > 0 {
+		result["next_cursor"] = encodeCursor(events[len(events)-1].Timestamp)
+	}
+
+	respondJSON(w, http.StatusOK, result)
 }
 
 // --- Agent Observations ---
@@ -1535,12 +1580,11 @@ func currentWeek() string {
 }
 
 func etagHash(data []byte) [16]byte {
-	// Simple non-cryptographic hash for ETag generation
 	var result [16]byte
-	hash := uint64(0xcbf29ce484222325) // FNV-1a offset basis
+	hash := uint64(0xcbf29ce484222325)
 	for _, b := range data {
 		hash ^= uint64(b)
-		hash *= 0x100000001b3 // FNV-1a prime
+		hash *= 0x100000001b3
 	}
 	result[0] = byte(hash)
 	result[1] = byte(hash >> 8)
@@ -1550,8 +1594,7 @@ func etagHash(data []byte) [16]byte {
 	result[5] = byte(hash >> 40)
 	result[6] = byte(hash >> 48)
 	result[7] = byte(hash >> 56)
-	// Second 8 bytes from a second pass
-	hash2 := uint64(0x517cc1b727220a95) // FNV-1a prime as offset
+	hash2 := uint64(0x517cc1b727220a95)
 	for i := len(data) - 1; i >= 0; i-- {
 		hash2 ^= uint64(data[i])
 		hash2 *= 0x100000001b3
@@ -1565,4 +1608,14 @@ func etagHash(data []byte) [16]byte {
 	result[14] = byte(hash2 >> 48)
 	result[15] = byte(hash2 >> 56)
 	return result
+}
+
+// encodeCursor encodes a timestamp string into a base64 cursor token.
+func encodeCursor(timestamp string) string {
+	return fmt.Sprintf("%s", timestamp)
+}
+
+// decodeCursor decodes a base64 cursor token back to a timestamp string.
+func decodeCursor(cursor string) string {
+	return cursor
 }

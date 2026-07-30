@@ -99,21 +99,28 @@ func RequireAnyScope(scopes ...string) func(http.Handler) http.Handler {
 	}
 }
 
-// CORS adds permissive CORS headers for development.
-func CORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-None-Match")
-		w.Header().Set("Access-Control-Expose-Headers", "ETag")
+// CORS adds configurable CORS headers.
+// Default origin "*" allows all origins (development). Set a specific origin for production.
+func CORS(origin string) func(http.Handler) http.Handler {
+	if origin == "" {
+		origin = "*"
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, If-None-Match")
+			w.Header().Set("Access-Control-Expose-Headers", "ETag")
+			w.Header().Set("Access-Control-Max-Age", "86400")
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // Logging logs incoming requests with method, path, status code, and latency.
@@ -124,6 +131,16 @@ func Logging(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r)
 		log.Printf("[http] %s %s %d %s", r.Method, r.URL.Path, ww.status, time.Since(start).Round(time.Millisecond))
 	})
+}
+
+// BodyLimit wraps the request body with http.MaxBytesReader to prevent OOM from large payloads.
+func BodyLimit(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 type statusWriter struct {

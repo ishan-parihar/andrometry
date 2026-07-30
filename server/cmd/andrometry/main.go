@@ -21,16 +21,18 @@ import (
 
 // Config holds server configuration loaded from config.toml or defaults.
 type Config struct {
-	Address          string
-	DatabasePath     string
-	BootstrapToken   string
-	MaxBatchEvents   int
-	MaxBatchSegments int
+	Address           string
+	DatabasePath      string
+	BootstrapToken    string
+	MaxBatchEvents    int
+	MaxBatchSegments  int
 	MaxBatchSummaries int
-	Retention        db.RetentionPolicy
-	Policy           governor.Policy
-	SSEEnabled       bool
-	SSEPollSeconds   int
+	MaxRequestBodyMB  int // Max request body size in MB (default 10)
+	CORSOrigin        string
+	Retention         db.RetentionPolicy
+	Policy            governor.Policy
+	SSEEnabled        bool
+	SSEPollSeconds    int
 }
 
 // DefaultConfig returns production-ready defaults matching config.toml.
@@ -41,6 +43,8 @@ func DefaultConfig() Config {
 		MaxBatchEvents:    500,
 		MaxBatchSegments:  100,
 		MaxBatchSummaries: 50,
+		MaxRequestBodyMB:  10,
+		CORSOrigin:        "*",
 		Retention:         db.DefaultRetentionPolicy(),
 		Policy:            governor.DefaultPolicy(),
 		SSEEnabled:        true,
@@ -220,7 +224,8 @@ func main() {
 	mux.Handle("POST /v1/privacy/wipe", auth(middleware.RequireScope("admin")(http.HandlerFunc(h.WipeData))))
 
 	// Apply global middleware
-	handler := middleware.CORS(middleware.Logging(mux))
+	bodyLimit := middleware.BodyLimit(int64(cfg.MaxRequestBodyMB) * 1024 * 1024)
+	handler := bodyLimit(middleware.CORS(cfg.CORSOrigin)(middleware.Logging(mux)))
 
 	// Enforce retention policy on startup
 	if err := database.EnforceRetentionPolicy(cfg.Retention); err != nil {

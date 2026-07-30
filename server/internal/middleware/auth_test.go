@@ -177,7 +177,7 @@ func TestCORS_setsHeaders(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := CORS(next)
+	handler := CORS("*")(next)
 
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
@@ -191,12 +191,28 @@ func TestCORS_setsHeaders(t *testing.T) {
 	}
 }
 
+func TestCORS_customOrigin(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := CORS("https://example.com")(next)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "https://example.com" {
+		t.Errorf("CORS origin = %q, want https://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
 func TestCORS_preflight(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler should not be called for OPTIONS")
 	})
 
-	handler := CORS(next)
+	handler := CORS("*")(next)
 
 	req := httptest.NewRequest("OPTIONS", "/", nil)
 	w := httptest.NewRecorder()
