@@ -704,6 +704,171 @@ paths:
         '200':
           description: Correction deleted
 
+  /v1/corrections/feedback:
+    get:
+      summary: Get correction feedback statistics
+      description: |
+        Returns aggregated correction statistics including label correction counts,
+        correction rate, and suggested classification adjustments. Used by the
+        feedback loop to improve classification confidence over time (P1).
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:context:read]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Correction statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label_corrections:
+                    type: object
+                    additionalProperties: { type: integer }
+                  total_corrections: { type: integer }
+                  total_segments: { type: integer }
+                  correction_rate: { type: number }
+                  suggested_adjustments:
+                    type: object
+                    additionalProperties: { type: number }
+    post:
+      summary: Apply correction feedback
+      description: |
+        Applies a label correction to a segment and records it for the feedback loop.
+        Closes the loop between user corrections and the classification system.
+      tags: [Device]
+      security:
+        - BearerAuth: [device:write_feedback]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [segment_id, new_label]
+              properties:
+                segment_id: { type: string }
+                old_label: { type: string }
+                new_label: { type: string }
+                reason: { type: string }
+      responses:
+        '201':
+          description: Correction feedback applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: created }
+                  segment_updated: { type: boolean }
+                  feedback_applied: { type: boolean }
+        '400':
+          description: Missing segment_id or new_label
+
+  /v1/preferences:
+    get:
+      summary: Get user preferences
+      description: |
+        Retrieves user preferences (alignment weights, classification overrides).
+        Optionally filtered by category.
+      tags: [Device]
+      security:
+        - BearerAuth: [device:read_config]
+      parameters:
+        - name: category
+          in: query
+          schema: { type: string }
+          description: Filter by preference category (optional)
+      responses:
+        '200':
+          description: User preferences grouped by category
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      additionalProperties: { type: string }
+    put:
+      summary: Upsert user preferences
+      description: |
+        Upserts one or more preferences. Supports two formats:
+        1. Array format: {"preferences": [{"category":"x","key":"y","value":"z"}]}
+        2. Category+map format: {"category":"x", "preferences": {"key1":"val1", "key2":"val2"}}
+      tags: [Device]
+      security:
+        - BearerAuth: [device:read_config]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    preferences:
+                      type: array
+                      items:
+                        type: object
+                        required: [category, key, value]
+                        properties:
+                          category: { type: string }
+                          key: { type: string }
+                          value: { type: string }
+                - type: object
+                  required: [category, preferences]
+                  properties:
+                    category: { type: string }
+                    preferences:
+                      type: object
+                      additionalProperties: {}
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: updated }
+                  updated: { type: integer }
+        '400':
+          description: Invalid JSON or missing category
+
+  /v1/preferences/{category}/{key}:
+    delete:
+      summary: Delete a single preference
+      tags: [Device]
+      security:
+        - BearerAuth: [device:read_config]
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema: { type: string }
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Preference deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: deleted }
+        '400':
+          description: Missing category or key
+
   /v1/stream:
     get:
       summary: SSE stream for real-time context updates
