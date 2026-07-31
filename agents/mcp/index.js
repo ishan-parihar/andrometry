@@ -1336,6 +1336,20 @@ server.tool(
 );
 
 // ============================================================
+// Intervention Lifecycle Tools
+// ============================================================
+
+server.tool(
+  "get_pending_interventions",
+  "Get pending interventions for the device — shows interventions waiting to be delivered to the user",
+  {},
+  async () => {
+    const data = await relayFetch("/v1/device/interventions");
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 

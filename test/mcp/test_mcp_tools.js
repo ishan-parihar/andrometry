@@ -1101,11 +1101,19 @@ const mcpTools = [
     requiredFields: ["status"],
     validates: (data) => { assert(data.status === 'created', "Must return created status"); },
   },
+  {
+    name: "get_pending_interventions",
+    description: "Get pending interventions for the device",
+    endpoint: "/v1/device/interventions",
+    method: "GET",
+    requiredFields: ["interventions"],
+    validates: (data) => { assert(Array.isArray(data.interventions), "Must have interventions array"); },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 64, `Expected 64 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 65, `Expected 65 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -1267,6 +1275,7 @@ const scopeMap = {
   delete_preference: "device:read_config",
   get_correction_feedback: "agent:context:read",
   apply_correction_feedback: "device:write_feedback",
+  get_pending_interventions: "device:read_interventions",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
   const tool = mcpTools.find((t) => t.name === toolName);

@@ -2,6 +2,41 @@
 
 All notable changes to the Andrometry project are documented here.
 
+## [0.1.1] — 2026-07-31
+
+### Server
+
+#### Bug Fixes
+- Weekly summary uses batch date from first segment instead of always current week (`handlers.go`)
+- Weekly summary staleness: regenerate when daily summaries are newer (`handlers.go`, `week_summaries.go`)
+- SQLite timestamp format fix for staleness check (`"2006-01-02 15:04:05"`)
+- Rename `batchTz` to avoid variable shadowing with loop `tz`
+- Weekly summary auto-generation moved outside segment ingestion block
+
+#### New Endpoints
+- `GET /v1/corrections/feedback` — Correction feedback statistics for classification loop (§37)
+- `POST /v1/corrections/feedback` — Apply label correction with feedback loop
+- `GET /v1/preferences` — User preferences (alignment weights, classification overrides)
+- `PUT /v1/preferences` — Upsert preferences (array or category+map format)
+- `DELETE /v1/preferences/{category}/{key}` — Delete single preference
+
+#### New Tests (7 integration tests)
+- `TestPreferences_roundTrip` — Full CRUD cycle
+- `TestPreferences_categoryMapFormat` — Category+map format
+- `TestPreferences_empty` — Empty state
+- `TestCorrectionFeedback_empty` — Empty state
+- `TestCorrectionFeedback_withCorrections` — 3 audit entries
+- `TestApplyCorrectionFeedback` — Segment update + audit
+- `TestApplyCorrectionFeedback_missingFields` — 400 validation
+
+### MCP Server
+- 65 tools (up from 59) — `get_preferences`, `set_preferences`, `delete_preference`, `get_correction_feedback`, `apply_correction_feedback`, `get_pending_interventions`
+
+### OpenAPI Spec
+- Documented 5 previously undocumented routes: corrections/feedback, preferences
+
+---
+
 ## [0.1.0] — 2026-07-30
 
 ### Server — Full Architecture Implementation (§1–§42)
