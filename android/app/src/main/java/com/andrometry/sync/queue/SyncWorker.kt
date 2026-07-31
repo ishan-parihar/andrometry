@@ -38,7 +38,30 @@ class SyncWorker @AssistedInject constructor(
             val pendingEvents = database.eventDao().getPendingEvents()
             val pendingSegments = database.segmentDao().getPendingSegments()
 
-            if (pendingEvents.isEmpty() && pendingSegments.isEmpty()) {
+            // §14.2: Include pending five-minute summaries in batch
+            val pendingFiveMinSummaries = try {
+                database.fiveMinuteSummaryDao().getPendingSync()
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            // §14.2: Include pending hourly summaries in batch
+            val pendingHourlySummaries = try {
+                database.hourlySummaryDao().getPendingSync()
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            // §14.2: Include current context in batch
+            val currentContext = try {
+                database.contextDao().get()
+            } catch (e: Exception) {
+                null
+            }
+
+            if (pendingEvents.isEmpty() && pendingSegments.isEmpty() &&
+                pendingFiveMinSummaries.isEmpty() && pendingHourlySummaries.isEmpty() &&
+                currentContext == null) {
                 return Result.success()
             }
 
@@ -101,8 +124,28 @@ class SyncWorker @AssistedInject constructor(
                 sequence_end = lastSequence,
                 events = eventsAsMaps,
                 segments = segmentsAsMaps,
-                summaries = emptyList(),
-                context = null,
+                summaries = pendingFiveMinSummaries.map { summary ->
+                    mapOf(
+                        "summary_type" to "five_minute",
+                        "start_time" to summary.startTime,
+                        "end_time" to summary.endTime,
+                        "payload" to com.google.gson.Gson().fromJson(summary.summary, Map::class.java)
+                    )
+                } + pendingHourlySummaries.map { summary ->
+                    mapOf(
+                        "summary_type" to "hourly",
+                        "start_time" to summary.startTime,
+                        "end_time" to summary.endTime,
+                        "payload" to com.google.gson.Gson().fromJson(summary.summary, Map::class.java)
+                    )
+                },
+                context = currentContext?.let {
+                    mapOf(
+                        "timestamp" to it.timestamp,
+                        "timezone" to it.timezone,
+                        "payload" to com.google.gson.Gson().fromJson(it.context, Map::class.java)
+                    )
+                },
                 device_state = mapOf(
                     "battery" to batteryLevel,
                     "charging" to isCharging,
@@ -126,9 +169,15 @@ class SyncWorker @AssistedInject constructor(
 
             dataQualityEngine.recordSyncResult(true)
 
+            // Post-upload bookkeeping: mark all items as synced atomically
             database.eventDao().markUploaded(pendingEvents.map { it.eventId })
             database.segmentDao().markUploaded(pendingSegments.map { it.segmentId })
-
+            for (summary in pendingFiveMinSummaries) {
+                database.fiveMinuteSummaryDao().markSynced(summary.startTime)
+            }
+            for (summary in pendingHourlySummaries) {
+                database.hourlySummaryDao().markSynced(summary.startTime)
+            }
             database.eventDao().pruneOldEvents()
 
             Result.success()

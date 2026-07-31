@@ -14,6 +14,8 @@ import com.andrometry.inference.segments.SegmentEngine
 import com.andrometry.inference.context.ContextInferenceEngine
 import com.andrometry.summaries.five_minute.FiveMinuteSummaryEngine
 import com.andrometry.summaries.hourly.HourlySummaryEngine
+import com.andrometry.summaries.daily.DailySummaryEngine
+import com.andrometry.summaries.weekly.WeeklySummaryEngine
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.text.SimpleDateFormat
@@ -35,6 +37,8 @@ import javax.inject.Singleton
  * - Health Connect sync: 30 min (balanced) / 15 min (high fidelity) / 60 min (eco)
  * - Five-minute summary: 15 min (WorkManager minimum)
  * - Hourly summary: 60 min
+ * - Daily summary: 24 hours (once per day)
+ * - Weekly summary: 168 hours (once per week)
  * - Timeline segmentation: 15 min
  * - Context snapshot: 15 min (balanced) / 5 min (high fidelity) / 30 min (eco)
  * - Permission state check: 15 min
@@ -49,6 +53,8 @@ class CollectorScheduler @Inject constructor(
         const val WORK_HEALTH = "andrometry_collector_health"
         const val WORK_FIVE_MIN = "andrometry_collector_five_minute"
         const val WORK_HOURLY = "andrometry_collector_hourly"
+        const val WORK_DAILY = "andrometry_collector_daily"
+        const val WORK_WEEKLY = "andrometry_collector_weekly"
         const val WORK_SEGMENT = "andrometry_collector_segment"
         const val WORK_CONTEXT = "andrometry_collector_context"
         const val WORK_PERMISSIONS = "andrometry_collector_permissions"
@@ -69,6 +75,8 @@ class CollectorScheduler @Inject constructor(
         scheduleHealthCollector(context, healthInterval)
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
+        scheduleDailySummary(context)
+        scheduleWeeklySummary(context)
         scheduleSegmentation(context, segmentInterval)
         scheduleContextSnapshot(context, contextInterval)
         schedulePermissionCheck(context)
@@ -147,6 +155,42 @@ class CollectorScheduler @Inject constructor(
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_HOURLY, ExistingPeriodicWorkPolicy.KEEP, work
+        )
+    }
+
+    /**
+     * Daily summary: once per day (§9.6)
+     */
+    private fun scheduleDailySummary(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
+
+        val work = PeriodicWorkRequestBuilder<DailySummaryWorker>(
+            24, TimeUnit.HOURS
+        ).setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            WORK_DAILY, ExistingPeriodicWorkPolicy.KEEP, work
+        )
+    }
+
+    /**
+     * Weekly summary: once per week (§9.6)
+     */
+    private fun scheduleWeeklySummary(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+            .build()
+
+        val work = PeriodicWorkRequestBuilder<WeeklySummaryWorker>(
+            7, TimeUnit.DAYS
+        ).setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            WORK_WEEKLY, ExistingPeriodicWorkPolicy.KEEP, work
         )
     }
 
@@ -289,6 +333,53 @@ class HourlySummaryWorker @AssistedInject constructor(
             val hourAgo = Date(now.time - 3600000)
             val summary = hourlySummaryEngine.generateSummary(hourAgo)
             hourlySummaryEngine.storeSummary(summary)
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
+    }
+}
+
+@HiltWorker
+class DailySummaryWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val dailySummaryEngine: DailySummaryEngine
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        return try {
+            val now = Date()
+            val yesterday = Date(now.time - 24 * 60 * 60 * 1000)
+            val summary = dailySummaryEngine.generateSummary(yesterday)
+            dailySummaryEngine.storeSummary(summary)
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
+        }
+    }
+}
+
+@HiltWorker
+class WeeklySummaryWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val weeklySummaryEngine: WeeklySummaryEngine
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun doWork(): Result {
+        return try {
+            val now = Date()
+            val calendar = Calendar.getInstance().apply {
+                time = now
+                add(Calendar.DAY_OF_YEAR, -7)
+                set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+            }
+            val summary = weeklySummaryEngine.generateSummary(calendar.time)
+            weeklySummaryEngine.storeSummary(summary)
             Result.success()
         } catch (e: Exception) {
             Result.retry()

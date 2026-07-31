@@ -260,6 +260,12 @@ interface FiveMinuteSummaryDao {
 
     @Query("SELECT * FROM five_minute_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
     suspend fun getInRange(from: String, to: String): List<FiveMinuteSummaryEntity>
+
+    @Query("SELECT * FROM five_minute_summary WHERE syncState = 'pending' ORDER BY startTime ASC")
+    suspend fun getPendingSync(): List<FiveMinuteSummaryEntity>
+
+    @Query("UPDATE five_minute_summary SET syncState = 'uploaded' WHERE startTime = :startTime")
+    suspend fun markSynced(startTime: String)
 }
 
 @Dao
@@ -272,6 +278,12 @@ interface HourlySummaryDao {
 
     @Query("SELECT * FROM hourly_summary WHERE startTime >= :from AND startTime <= :to ORDER BY startTime ASC")
     suspend fun getInRange(from: String, to: String): List<HourlySummaryEntity>
+
+    @Query("SELECT * FROM hourly_summary WHERE syncState = 'pending' ORDER BY startTime ASC")
+    suspend fun getPendingSync(): List<HourlySummaryEntity>
+
+    @Query("UPDATE hourly_summary SET syncState = 'uploaded' WHERE startTime = :startTime")
+    suspend fun markSynced(startTime: String)
 }
 
 @Dao
