@@ -9,6 +9,7 @@ import com.andrometry.collectors.usage.UsageCollector
 import com.andrometry.collectors.health.HealthCollector
 import com.andrometry.collectors.permissions.PermissionCollector
 
+import com.andrometry.core.config.BatteryProfileManager
 import com.andrometry.inference.segments.SegmentEngine
 import com.andrometry.inference.context.ContextInferenceEngine
 import com.andrometry.summaries.five_minute.FiveMinuteSummaryEngine
@@ -24,20 +25,24 @@ import javax.inject.Singleton
 /**
  * Schedules all collector workers per architecture §8 tiered collection strategy.
  *
- * Tier 1 (Periodic WorkManager):
- * - App usage summary: 15 min
- * - Calendar sync: 15 min
- * - Health Connect sync: 30 min
- * - Context snapshot: 15 min (via inference)
- * - Timeline segmentation: 15 min
- * - Five-minute summary: 15 min (min WorkManager interval)
- * - Hourly summary: 60 min
+ * Now uses BatteryProfileManager (§24) to get adaptive intervals:
+ * - Eco: Longer intervals, minimal collection
+ * - Balanced: Default intervals (15 min)
+ * - High Fidelity: Short intervals (2-5 min)
  *
- * Note: WorkManager minimum periodic interval is 15 minutes.
- * For 1-5 min granularity, use a foreground service (Tier 2 / active mode).
+ * Tier 1 (Periodic WorkManager):
+ * - App usage summary: 15 min (balanced) / 2 min (high fidelity) / 30 min (eco)
+ * - Health Connect sync: 30 min (balanced) / 15 min (high fidelity) / 60 min (eco)
+ * - Five-minute summary: 15 min (WorkManager minimum)
+ * - Hourly summary: 60 min
+ * - Timeline segmentation: 15 min
+ * - Context snapshot: 15 min (balanced) / 5 min (high fidelity) / 30 min (eco)
+ * - Permission state check: 15 min
  */
 @Singleton
-class CollectorScheduler @Inject constructor() {
+class CollectorScheduler @Inject constructor(
+    private val batteryProfileManager: BatteryProfileManager
+) {
 
     companion object {
         const val WORK_USAGE = "andrometry_collector_usage"
@@ -50,52 +55,62 @@ class CollectorScheduler @Inject constructor() {
     }
 
     fun scheduleAll(context: Context) {
-        scheduleUsageCollector(context)
-        scheduleHealthCollector(context)
+        val profile = batteryProfileManager.updateProfile(context)
+        val config = batteryProfileManager.getConfig()
+
+        // WorkManager enforces minimum 15-minute interval (§8.3).
+        // Sub-15-minute intervals require a foreground service (Tier 2).
+        val usageInterval = config.appUsageIntervalMinutes.coerceAtLeast(15)
+        val healthInterval = config.healthSyncIntervalMinutes.coerceAtLeast(15)
+        val segmentInterval = config.contextSnapshotIntervalMinutes.coerceAtLeast(15)
+        val contextInterval = config.contextSnapshotIntervalMinutes.coerceAtLeast(15)
+
+        scheduleUsageCollector(context, usageInterval)
+        scheduleHealthCollector(context, healthInterval)
         scheduleFiveMinuteSummary(context)
         scheduleHourlySummary(context)
-        scheduleSegmentation(context)
-        scheduleContextSnapshot(context)
+        scheduleSegmentation(context, segmentInterval)
+        scheduleContextSnapshot(context, contextInterval)
         schedulePermissionCheck(context)
     }
 
     /**
-     * App usage: every 15 min (Tier 1 balanced)
+     * App usage: adaptive interval from battery profile
      */
-    private fun scheduleUsageCollector(context: Context) {
+    private fun scheduleUsageCollector(context: Context, intervalMinutes: Int) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .setRequiresBatteryNotLow(true)
             .build()
 
         val work = PeriodicWorkRequestBuilder<UsageCollectorWorker>(
-            15, TimeUnit.MINUTES
+            intervalMinutes.toLong(), TimeUnit.MINUTES
         ).setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_USAGE, ExistingPeriodicWorkPolicy.KEEP, work
+            WORK_USAGE, ExistingPeriodicWorkPolicy.UPDATE, work
         )
     }
 
     /**
-     * Health Connect: every 30 min (Tier 1)
+     * Health Connect: adaptive interval from battery profile
      */
-    private fun scheduleHealthCollector(context: Context) {
+    private fun scheduleHealthCollector(context: Context, intervalMinutes: Int) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .setRequiresBatteryNotLow(true)
             .build()
 
         val work = PeriodicWorkRequestBuilder<HealthCollectorWorker>(
-            30, TimeUnit.MINUTES
+            intervalMinutes.toLong(), TimeUnit.MINUTES
         ).setConstraints(constraints)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 2, TimeUnit.MINUTES)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_HEALTH, ExistingPeriodicWorkPolicy.KEEP, work
+            WORK_HEALTH, ExistingPeriodicWorkPolicy.UPDATE, work
         )
     }
 
@@ -136,38 +151,38 @@ class CollectorScheduler @Inject constructor() {
     }
 
     /**
-     * Timeline segmentation: every 15 min
+     * Timeline segmentation: adaptive interval from battery profile
      */
-    private fun scheduleSegmentation(context: Context) {
+    private fun scheduleSegmentation(context: Context, intervalMinutes: Int) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .build()
 
         val work = PeriodicWorkRequestBuilder<SegmentationWorker>(
-            15, TimeUnit.MINUTES
+            intervalMinutes.toLong(), TimeUnit.MINUTES
         ).setConstraints(constraints)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_SEGMENT, ExistingPeriodicWorkPolicy.KEEP, work
+            WORK_SEGMENT, ExistingPeriodicWorkPolicy.UPDATE, work
         )
     }
 
     /**
-     * Context snapshot: every 15 min
+     * Context snapshot: adaptive interval from battery profile
      */
-    private fun scheduleContextSnapshot(context: Context) {
+    private fun scheduleContextSnapshot(context: Context, intervalMinutes: Int) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .build()
 
         val work = PeriodicWorkRequestBuilder<ContextSnapshotWorker>(
-            15, TimeUnit.MINUTES
+            intervalMinutes.toLong(), TimeUnit.MINUTES
         ).setConstraints(constraints)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_CONTEXT, ExistingPeriodicWorkPolicy.KEEP, work
+            WORK_CONTEXT, ExistingPeriodicWorkPolicy.UPDATE, work
         )
     }
 

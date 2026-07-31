@@ -2,6 +2,7 @@ package com.andrometry.inference.context
 
 import com.andrometry.core.database.CurrentContextEntity
 import com.andrometry.core.database.EventEntity
+import com.andrometry.inference.readiness.ReadinessEngine
 import com.google.gson.Gson
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,10 +25,19 @@ import javax.inject.Singleton
  * - Notification load
  * - Health activity
  * - Sleep debt
+ *
+ * Delegates to ReadinessEngine (§40) for fatigue/readiness scoring,
+ * providing richer output including:
+ * - cognitiveLoad
+ * - suggestedBreak
+ * - bestNextAction
+ * - sleepDebtMinutes
+ * - recommendedFocusIntensity
  */
 @Singleton
 class ContextInferenceEngine @Inject constructor(
-    private val preferencesBridge: PreferencesBridge? = null
+    private val preferencesBridge: PreferencesBridge? = null,
+    private val readinessEngine: ReadinessEngine
 ) {
 
     data class ContextSnapshot(
@@ -48,6 +58,11 @@ class ContextInferenceEngine @Inject constructor(
         val fatigueProbability: Double,
         val alignmentProbability: Double,
         val readinessScore: Double,
+        val cognitiveLoad: String,
+        val suggestedBreak: Boolean,
+        val bestNextAction: String,
+        val sleepDebtMinutes: Int,
+        val recommendedFocusIntensity: String,
         val calendar: CalendarInfo?,
         val health: HealthInfo?,
         val sleep: SleepInfo?,
@@ -93,89 +108,52 @@ class ContextInferenceEngine @Inject constructor(
         val clockDriftDetected: Boolean
     )
 
-    /**
-     * Minimum duration (seconds) before an app category can be used to classify activity.
-     * Prevents transient app switches from affecting activity classification.
-     */
     private val MINIMUM_ACTIVITY_DURATION_SECONDS = 60
-
-    /**
-     * Cooldown period (seconds) before switching activity type.
-     * Prevents rapid oscillation between activities (e.g., social ↔ communication).
-     * Must sustain new activity for this duration before it takes effect.
-     */
     private val ACTIVITY_COOLDOWN_SECONDS = 120
 
-    /**
-     * Last classified activity for hysteresis.
-     * Tracks the previous activity to apply cooldown logic.
-     * Protected by hysteresisMutex for thread safety with suspend callers.
-     */
     private val hysteresisMutex = Mutex()
     private var lastActivity: String? = null
     private var lastActivityTimestamp: Long = 0L
 
-    /**
-     * Applies temporal hysteresis: if switching to a different activity,
-     * require that the new activity has been sustained for ACTIVITY_COOLDOWN_SECONDS.
-     * Sensor-based detections (sleep, meeting, exercise, commute) bypass cooldown.
-     * When sensor condition is no longer active, cooldown is bypassed to allow transition.
-     */
     private suspend fun applyTemporalHysteresis(
         newActivity: String,
         newConfidence: Double,
         now: Long
     ): Pair<String, Double> {
         return hysteresisMutex.withLock {
-        // Sensor-based activities bypass cooldown (they're high-confidence signals)
-        val sensorActivities = setOf("sleep", "meeting", "exercise", "commute")
-        if (newActivity in sensorActivities) {
-            lastActivity = newActivity
-            lastActivityTimestamp = now
-            return newActivity to newConfidence
-        }
-
-        // If same activity, just update timestamp and return
-        if (newActivity == lastActivity) {
-            lastActivityTimestamp = now
-            return newActivity to newConfidence
-        }
-
-        // If previous activity was sensor-based but no longer active, bypass cooldown
-        if (lastActivity in sensorActivities) {
-            lastActivity = newActivity
-            lastActivityTimestamp = now
-            return newActivity to newConfidence
-        }
-
-        // If switching to a new activity, check cooldown
-        if (lastActivity != null && lastActivityTimestamp > 0) {
-            val elapsedSeconds = (now - lastActivityTimestamp) / 1000L
-            if (elapsedSeconds < ACTIVITY_COOLDOWN_SECONDS) {
-                // Not enough time has passed — keep the previous activity
-                // but reduce confidence slightly to signal uncertainty
-                return lastActivity!! to (newConfidence * 0.8).coerceAtLeast(0.3)
+            val sensorActivities = setOf("sleep", "meeting", "exercise", "commute")
+            if (newActivity in sensorActivities) {
+                lastActivity = newActivity
+                lastActivityTimestamp = now
+                return@withLock newActivity to newConfidence
             }
-        }
 
-        // Cooldown passed or first classification — accept new activity
-        lastActivity = newActivity
-        lastActivityTimestamp = now
-        newActivity to newConfidence
+            if (newActivity == lastActivity) {
+                lastActivityTimestamp = now
+                return@withLock newActivity to newConfidence
+            }
+
+            if (lastActivity in sensorActivities) {
+                lastActivity = newActivity
+                lastActivityTimestamp = now
+                return@withLock newActivity to newConfidence
+            }
+
+            if (lastActivity != null && lastActivityTimestamp > 0) {
+                val elapsedSeconds = (now - lastActivityTimestamp) / 1000L
+                if (elapsedSeconds < ACTIVITY_COOLDOWN_SECONDS) {
+                    return@withLock lastActivity!! to (newConfidence * 0.8).coerceAtLeast(0.3)
+                }
+            }
+
+            lastActivity = newActivity
+            lastActivityTimestamp = now
+            newActivity to newConfidence
         }
     }
 
     /**
      * Infers the current context from recent events.
-     * 
-     * Enhanced with:
-     * - Calendar signals (meeting detection)
-     * - Health signals (activity, heart rate)
-     * - Location signals (place, movement)
-     * - Screen unlock timing
-     * - Sleep debt estimation
-     * - Minimum duration thresholds
-     * - Background audio app exclusion
      */
     suspend fun infer(
         recentEvents: List<EventEntity>,
@@ -197,115 +175,71 @@ class ContextInferenceEngine @Inject constructor(
     ): ContextSnapshot {
         val now = Calendar.getInstance()
 
-        // Count app switches in last 5 minutes
-        val fiveMinAgo = now.clone() as Calendar
-        fiveMinAgo.add(Calendar.MINUTE, -5)
-        val recentAppEvents = recentEvents.filter {
-            it.eventType == "app_usage_summary"
-        }
+        val recentAppEvents = recentEvents.filter { it.eventType == "app_usage_summary" }
         val appSwitchCount = recentAppEvents.sumOf { event ->
             val payload = parsePayload(event.payload)
             (payload["app_switch_count"] as? Number)?.toInt() ?: 0
         }
 
-        // Calculate foreground duration for current app category from most recent event only
         val foregroundDurationSeconds = recentAppEvents.lastOrNull()?.let { event ->
             val payload = parsePayload(event.payload)
             val byCategory = payload["by_category"] as? Map<*, *>
             (byCategory?.get(currentAppCategory) as? Number)?.toLong() ?: 0L
         } ?: 0L
 
-        // Count notifications in last 15 minutes
-        val fifteenMinAgo = now.clone() as Calendar
-        fifteenMinAgo.add(Calendar.MINUTE, -15)
-        val recentNotifEvents = recentEvents.filter {
-            it.eventType == "notification_summary"
-        }
+        val recentNotifEvents = recentEvents.filter { it.eventType == "notification_summary" }
         val notificationsLast15m = recentNotifEvents.sumOf { event ->
             val payload = parsePayload(event.payload)
             (payload["total"] as? Number)?.toInt() ?: 0
         }
 
-        // Detect if user is in a meeting from calendar
-        val isInMeeting = calendarInfo?.currentEvent != null && 
+        val isInMeeting = calendarInfo?.currentEvent != null &&
             calendarInfo.currentEvent != "none" &&
             calendarInfo.busyUntil != null
 
-        // Detect exercise from health data
-        val isExercising = healthInfo?.activity == "walking" || 
-            healthInfo?.activity == "running" ||
-            healthInfo?.activity == "cycling" ||
-            healthInfo?.activity == "vehicle" // in transit
+        val isExercising = healthInfo?.activity in listOf("walking", "running", "cycling", "vehicle")
 
-        // Detect sleep from screen off + time + location
         val isSleeping = screenState == "off" &&
             now.get(Calendar.HOUR_OF_DAY) in 0..6 &&
             currentPlace == "home" &&
             movement == "still"
 
-        // Detect commute from movement + location
         val isCommute = movement == "in_transit" ||
             (currentPlace == "unknown" && healthInfo?.activity == "vehicle")
 
-        // Classify activity with enhanced signals
         val classification = classifyActivity(
-            focusActive = focusActive,
-            currentAppCategory = currentAppCategory,
-            appSwitchCount = appSwitchCount,
-            notificationsLast15m = notificationsLast15m,
-            isInMeeting = isInMeeting,
-            isExercising = isExercising,
-            isSleeping = isSleeping,
-            isCommute = isCommute,
-            foregroundDurationSeconds = foregroundDurationSeconds,
-            isBackgroundAudioApp = isBackgroundAudioApp,
-            currentPlace = currentPlace,
-            healthInfo = healthInfo
+            focusActive, currentAppCategory, appSwitchCount, notificationsLast15m,
+            isInMeeting, isExercising, isSleeping, isCommute,
+            foregroundDurationSeconds, isBackgroundAudioApp, currentPlace, healthInfo
         )
 
-        // Calculate probabilities
         val distractionProb = calculateDistractionProbability(
-            appSwitchCount = appSwitchCount,
-            currentAppCategory = currentAppCategory,
-            notificationsLast15m = notificationsLast15m,
-            focusActive = focusActive,
-            isInMeeting = isInMeeting
+            appSwitchCount, currentAppCategory, notificationsLast15m, focusActive, isInMeeting
         )
 
-        val fatigueProb = calculateFatigueProbability(
-            now = now,
-            sleepInfo = sleepInfo,
-            healthInfo = healthInfo,
-            minutesSinceUnlock = minutesSinceUnlock
+        val alignmentProb = calculateAlignmentProbability(focusActive, currentAppCategory, calendarInfo, isInMeeting)
+
+        // Delegate to ReadinessEngine (§40) for comprehensive fatigue/readiness scoring
+        val hoursSinceWake = calculateHoursSinceWake(now)
+        val readinessOutput = readinessEngine.computeReadiness(
+            ReadinessEngine.ReadinessInput(
+                sleepDurationMinutes = sleepInfo?.lastSleepMinutes ?: 0,
+                sleepRegularityScore = 0.5,
+                hoursSinceWake = hoursSinceWake,
+                lateNightScreenMinutes = if (now.get(Calendar.HOUR_OF_DAY) in 22..23 || now.get(Calendar.HOUR_OF_DAY) in 0..6) minutesSinceUnlock else 0,
+                heartRateAvg = healthInfo?.heartRateAvg ?: 0,
+                stepsToday = (healthInfo?.stepsLastHour ?: 0) * 6,
+                focusMinutesToday = focusMinutes,
+                meetingMinutesToday = 0
+            )
         )
 
-        val alignmentProb = calculateAlignmentProbability(
-            focusActive = focusActive,
-            currentAppCategory = currentAppCategory,
-            calendarInfo = calendarInfo,
-            isInMeeting = isInMeeting
-        )
-
-        val readinessScore = calculateReadinessScore(
-            fatigueProbability = fatigueProb,
-            batteryLevel = batteryLevel,
-            sleepInfo = sleepInfo,
-            healthInfo = healthInfo
-        )
-
-        // Calculate staleness
-        val oldestEvent = recentEvents.minByOrNull {
-            parseTimestamp(it.timestamp)?.time ?: 0L
-        }
+        val oldestEvent = recentEvents.minByOrNull { parseTimestamp(it.timestamp)?.time ?: 0L }
         val stalenessSeconds = if (oldestEvent != null) {
             val ts = parseTimestamp(oldestEvent.timestamp)
-            if (ts != null) {
-                val diffMs = now.timeInMillis - ts.time
-                (diffMs / 1000L).toInt()
-            } else 999
+            if (ts != null) ((now.timeInMillis - ts.time) / 1000L).toInt() else 999
         } else 999
 
-        // Data completeness
         val availableSignals = mutableListOf(
             "screen_state" to true,
             "app_usage" to recentAppEvents.isNotEmpty(),
@@ -316,10 +250,9 @@ class ContextInferenceEngine @Inject constructor(
         if (healthInfo != null) availableSignals.add("health" to true)
         if (sleepInfo != null) availableSignals.add("sleep" to true)
         if (currentPlace != "unknown") availableSignals.add("location" to true)
-        
+
         val completeness = availableSignals.count { it.second }.toDouble() / availableSignals.size
 
-        // Track missing signals
         val missingSignals = mutableListOf<String>()
         if (calendarInfo == null) missingSignals.add("calendar")
         if (healthInfo == null) missingSignals.add("health")
@@ -346,9 +279,14 @@ class ContextInferenceEngine @Inject constructor(
             },
             notificationsLast15m = notificationsLast15m,
             distractionProbability = distractionProb,
-            fatigueProbability = fatigueProb,
+            fatigueProbability = readinessOutput.fatigueProbability,
             alignmentProbability = alignmentProb,
-            readinessScore = readinessScore,
+            readinessScore = readinessOutput.readinessScore,
+            cognitiveLoad = readinessOutput.cognitiveLoad,
+            suggestedBreak = readinessOutput.suggestedBreak,
+            bestNextAction = readinessOutput.bestNextAction,
+            sleepDebtMinutes = readinessOutput.sleepDebtMinutes,
+            recommendedFocusIntensity = readinessOutput.recommendedFocusIntensity,
             calendar = calendarInfo,
             health = healthInfo,
             sleep = sleepInfo,
@@ -371,18 +309,12 @@ class ContextInferenceEngine @Inject constructor(
         )
     }
 
-    /**
-     * Classifies activity with enhanced signals.
-     * Handles all 15 activity types from architecture §11.2.
-     * 
-     * Priority order:
-     * 1. Sleep (screen off + night + home + still)
-     * 2. Meeting (calendar busy)
-     * 3. Exercise (health activity)
-     * 4. Commute (movement/transit)
-     * 5. Focus-based (deep_work, shallow_work)
-     * 6. Category-based (communication, social, leisure, etc.)
-     */
+    private fun calculateHoursSinceWake(now: Calendar): Double {
+        val hour = now.get(Calendar.HOUR_OF_DAY)
+        val wakeHour = 7
+        return if (hour >= wakeHour) (hour - wakeHour).toDouble() else (24 - wakeHour + hour).toDouble()
+    }
+
     private suspend fun classifyActivity(
         focusActive: Boolean,
         currentAppCategory: String,
@@ -399,38 +331,25 @@ class ContextInferenceEngine @Inject constructor(
     ): Pair<String, Double> {
         val now = System.currentTimeMillis()
 
-        // Priority 1-4: Sensor-based detection (high confidence, early return)
         val sensorResult = classifyFromSensors(isSleeping, isInMeeting, isExercising, isCommute)
         if (sensorResult != null) return applyTemporalHysteresis(sensorResult.first, sensorResult.second, now)
 
-        // Minimum duration threshold for background audio apps
         if (foregroundDurationSeconds < MINIMUM_ACTIVITY_DURATION_SECONDS && isBackgroundAudioApp) {
             return applyTemporalHysteresis("unknown", 0.40, now)
         }
 
-        // Priority 5: Focus-based classification
         val focusResult = classifyFromFocus(focusActive, currentAppCategory, appSwitchCount)
         if (focusResult != null) {
             val modified = applyConfidenceModifiers(focusResult, notificationsLast15m, focusActive)
             return applyTemporalHysteresis(modified.first, modified.second, now)
         }
 
-        // Priority 6: Category-based classification
         val categoryResult = classifyFromCategory(currentAppCategory, focusActive, appSwitchCount)
         val modified = applyConfidenceModifiers(categoryResult, notificationsLast15m, focusActive)
         return applyTemporalHysteresis(modified.first, modified.second, now)
     }
 
-    /**
-     * Priority 1-4: Sensor-based detection (sleep, meeting, exercise, commute).
-     * Returns null if none match, allowing fallthrough to app-based classification.
-     */
-    private fun classifyFromSensors(
-        isSleeping: Boolean,
-        isInMeeting: Boolean,
-        isExercising: Boolean,
-        isCommute: Boolean
-    ): Pair<String, Double>? {
+    private fun classifyFromSensors(isSleeping: Boolean, isInMeeting: Boolean, isExercising: Boolean, isCommute: Boolean): Pair<String, Double>? {
         if (isSleeping) return "sleep" to 0.85
         if (isInMeeting) return "meeting" to 0.82
         if (isExercising) return "exercise" to 0.80
@@ -438,17 +357,8 @@ class ContextInferenceEngine @Inject constructor(
         return null
     }
 
-    /**
-     * Priority 5: Focus-based classification.
-     * Returns null if focus is inactive or category doesn't match.
-     */
-    private fun classifyFromFocus(
-        focusActive: Boolean,
-        currentAppCategory: String,
-        appSwitchCount: Int
-    ): Pair<String, Double>? {
+    private fun classifyFromFocus(focusActive: Boolean, currentAppCategory: String, appSwitchCount: Int): Pair<String, Double>? {
         if (!focusActive) return null
-
         return when {
             currentAppCategory == "productivity" && appSwitchCount < 4 -> "deep_work" to 0.81
             currentAppCategory == "productivity" -> "shallow_work" to 0.70
@@ -459,14 +369,7 @@ class ContextInferenceEngine @Inject constructor(
         }
     }
 
-    /**
-     * Priority 6: Category-based classification (no focus active).
-     */
-    private fun classifyFromCategory(
-        currentAppCategory: String,
-        focusActive: Boolean,
-        appSwitchCount: Int
-    ): Pair<String, Double> {
+    private fun classifyFromCategory(currentAppCategory: String, focusActive: Boolean, appSwitchCount: Int): Pair<String, Double> {
         return when (currentAppCategory) {
             "communication", "email" -> "communication" to 0.75
             "social" -> if (focusActive) "distraction" to 0.80 else "social" to 0.70
@@ -482,174 +385,36 @@ class ContextInferenceEngine @Inject constructor(
         }
     }
 
-    /**
-     * Applies notification penalty and focus bonus to confidence.
-     */
-    private fun applyConfidenceModifiers(
-        result: Pair<String, Double>,
-        notificationsLast15m: Int,
-        focusActive: Boolean
-    ): Pair<String, Double> {
+    private fun applyConfidenceModifiers(result: Pair<String, Double>, notificationsLast15m: Int, focusActive: Boolean): Pair<String, Double> {
         var confidence = result.second
-
-        // Penalty for high notification load (interruptions)
-        if (notificationsLast15m > 10) {
-            confidence *= 0.9
-        }
-
-        // Bonus for consistent signals
+        if (notificationsLast15m > 10) confidence *= 0.9
         if (focusActive && result.first in listOf("deep_work", "shallow_work", "learning")) {
             confidence = (confidence * 1.1).coerceAtMost(0.95)
         }
-
         return result.first to confidence.coerceIn(0.0, 1.0)
     }
 
-    private fun calculateDistractionProbability(
-        appSwitchCount: Int,
-        currentAppCategory: String,
-        notificationsLast15m: Int,
-        focusActive: Boolean,
-        isInMeeting: Boolean
-    ): Double {
+    private fun calculateDistractionProbability(appSwitchCount: Int, currentAppCategory: String, notificationsLast15m: Int, focusActive: Boolean, isInMeeting: Boolean): Double {
         var prob = 0.1
-
-        // High app switching increases distraction
         prob += appSwitchCount * 0.02
-
-        // Social/entertainment apps are distracting
         if (currentAppCategory == "social") prob += 0.3
         if (currentAppCategory == "entertainment") prob += 0.2
-
-        // High notifications increase distraction
         prob += notificationsLast15m * 0.02
-
-        // Focus active reduces distraction probability
         if (focusActive) prob *= 0.7
-
-        // Meeting context reduces distraction
         if (isInMeeting) prob *= 0.5
-
         return prob.coerceIn(0.0, 1.0)
     }
 
-    /**
-     * Calculates fatigue probability using multiple signals:
-     * - Time of day (circadian rhythm)
-     * - Sleep debt from previous night
-     * - Health activity (exercise reduces fatigue)
-     * - Screen time accumulation
-     */
-    private fun calculateFatigueProbability(
-        now: Calendar,
-        sleepInfo: SleepInfo?,
-        healthInfo: HealthInfo?,
-        minutesSinceUnlock: Int
-    ): Double {
-        val hour = now.get(Calendar.HOUR_OF_DAY)
-
-        // Base fatigue from time of day (circadian rhythm)
-        var baseFatigue = when {
-            hour in 0..5 -> 0.7
-            hour in 6..7 -> 0.4
-            hour in 8..11 -> 0.2
-            hour in 12..13 -> 0.35 // post-lunch dip
-            hour in 14..17 -> 0.25
-            hour in 18..20 -> 0.35
-            hour in 21..22 -> 0.5
-            else -> 0.65
-        }
-
-        // Sleep debt adjustment
-        if (sleepInfo?.lastSleepMinutes != null) {
-            val sleepDebt = sleepInfo.sleepDebtEstimateMinutes ?: 0
-            // More sleep debt = higher fatigue
-            baseFatigue += (sleepDebt / 60.0) * 0.1
-        }
-
-        // Health activity adjustment (exercise reduces fatigue)
-        if (healthInfo?.activity == "walking" || healthInfo?.activity == "running") {
-            baseFatigue *= 0.85 // 15% reduction for active state
-        }
-
-        // Screen time accumulation (long screen time increases fatigue)
-        if (minutesSinceUnlock > 120) {
-            baseFatigue += 0.1 // 10% increase after 2 hours of screen time
-        } else if (minutesSinceUnlock > 60) {
-            baseFatigue += 0.05 // 5% increase after 1 hour
-        }
-
-        return baseFatigue.coerceIn(0.0, 1.0)
-    }
-
-    /**
-     * Calculates alignment probability based on:
-     * - Focus state
-     * - App category alignment
-     * - Calendar context (meeting = aligned)
-     */
-    private suspend fun calculateAlignmentProbability(
-        focusActive: Boolean,
-        currentAppCategory: String,
-        calendarInfo: CalendarInfo?,
-        isInMeeting: Boolean
-    ): Double {
-        // Delegate to PreferencesBridge if available (uses server-configured weights)
+    private suspend fun calculateAlignmentProbability(focusActive: Boolean, currentAppCategory: String, calendarInfo: CalendarInfo?, isInMeeting: Boolean): Double {
         if (preferencesBridge != null) {
-            return preferencesBridge.calculateAlignmentProbability(
-                focusActive = focusActive,
-                currentAppCategory = currentAppCategory,
-                isInMeeting = isInMeeting
-            )
+            return preferencesBridge.calculateAlignmentProbability(focusActive, currentAppCategory, isInMeeting)
         }
-
-        // Fallback: hardcoded defaults (matches PreferencesBridge.defaultWeights)
         var alignment = 0.5
         if (focusActive) alignment += 0.3
-        if (currentAppCategory in listOf("productivity", "education", "email", "calendar")) {
-            alignment += 0.15
-        }
+        if (currentAppCategory in listOf("productivity", "education", "email", "calendar")) alignment += 0.15
         if (isInMeeting) alignment += 0.1
-        if (currentAppCategory in listOf("social", "entertainment")) {
-            alignment -= 0.2
-        }
+        if (currentAppCategory in listOf("social", "entertainment")) alignment -= 0.2
         return alignment.coerceIn(0.0, 1.0)
-    }
-
-    /**
-     * Calculates readiness score using:
-     * - Fatigue probability
-     * - Battery level
-     * - Sleep quality
-     * - Health activity
-     */
-    private fun calculateReadinessScore(
-        fatigueProbability: Double,
-        batteryLevel: Double,
-        sleepInfo: SleepInfo?,
-        healthInfo: HealthInfo?
-    ): Double {
-        val fatigueComponent = (1.0 - fatigueProbability) * 0.5
-        val batteryComponent = batteryLevel * 0.2
-
-        var sleepComponent = 0.0
-        if (sleepInfo?.lastSleepMinutes != null) {
-            // Optimal sleep is 420-540 minutes (7-9 hours)
-            val sleepMinutes = sleepInfo.lastSleepMinutes
-            sleepComponent = when {
-                sleepMinutes in 420..540 -> 0.2 // optimal
-                sleepMinutes in 360..420 -> 0.15 // slightly short
-                sleepMinutes in 540..600 -> 0.15 // slightly long
-                else -> 0.1 // poor sleep
-            }
-        }
-
-        var healthComponent = 0.0
-        if (healthInfo?.activity == "walking" || healthInfo?.activity == "running") {
-            healthComponent = 0.1 // active state boosts readiness
-        }
-
-        return (fatigueComponent + batteryComponent + sleepComponent + healthComponent).coerceIn(0.0, 1.0)
     }
 
     fun toCurrentContextEntity(snapshot: ContextSnapshot): CurrentContextEntity {
@@ -675,6 +440,11 @@ class ContextInferenceEngine @Inject constructor(
             "fatigue_probability" to snapshot.fatigueProbability,
             "alignment_probability" to snapshot.alignmentProbability,
             "readiness_score" to snapshot.readinessScore,
+            "cognitive_load" to snapshot.cognitiveLoad,
+            "suggested_break" to snapshot.suggestedBreak,
+            "best_next_action" to snapshot.bestNextAction,
+            "sleep_debt_minutes" to snapshot.sleepDebtMinutes,
+            "recommended_focus_intensity" to snapshot.recommendedFocusIntensity,
             "calendar" to snapshot.calendar,
             "health" to snapshot.health,
             "sleep" to snapshot.sleep,
@@ -683,12 +453,10 @@ class ContextInferenceEngine @Inject constructor(
             "timezone" to TimeZone.getDefault().id
         )
 
-        val contextJson = Gson().toJson(contextMap)
-
         return CurrentContextEntity(
             timestamp = now,
             timezone = TimeZone.getDefault().id,
-            context = contextJson,
+            context = Gson().toJson(contextMap),
             syncState = "pending"
         )
     }

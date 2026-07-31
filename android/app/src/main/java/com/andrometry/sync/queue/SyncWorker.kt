@@ -7,6 +7,7 @@ import com.andrometry.core.config.SensitiveModeManager
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.network.BatchRequest
 import com.andrometry.core.network.RelayClient
+import com.andrometry.inference.data_quality.DataQualityEngine
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.*
@@ -15,6 +16,8 @@ import java.util.concurrent.TimeUnit
 /**
  * HiltWorker for periodic sync — properly integrates with Hilt DI.
  * Respects sensitive mode: if active, sync is paused (§33 Policy Governor).
+ *
+ * Includes app_health telemetry in device_state (§23.5).
  */
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
@@ -22,12 +25,12 @@ class SyncWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val database: AndrometryDatabase,
     private val relayClient: RelayClient,
-    private val sensitiveModeManager: SensitiveModeManager
+    private val sensitiveModeManager: SensitiveModeManager,
+    private val dataQualityEngine: DataQualityEngine
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
         return try {
-            // §33: Pause sync when sensitive mode is active
             if (sensitiveModeManager.shouldPauseSync()) {
                 return Result.success()
             }
@@ -79,6 +82,16 @@ class SyncWorker @AssistedInject constructor(
             val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) / 100.0
             val isCharging = batteryManager.isCharging
 
+            // §23.5: Safe DB size check — totalSize can throw on some Android versions
+            val dbSizeBytes = try {
+                database.getOpenHelper().writableDatabase.totalSize
+            } catch (e: Exception) {
+                0L
+            }
+
+            val queueSize = pendingEvents.size + pendingSegments.size
+            val healthTelemetry = dataQualityEngine.getHealthTelemetry(queueSize, dbSizeBytes)
+
             val batch = BatchRequest(
                 device_id = deviceId,
                 batch_id = UUID.randomUUID().toString(),
@@ -93,20 +106,34 @@ class SyncWorker @AssistedInject constructor(
                 device_state = mapOf(
                     "battery" to batteryLevel,
                     "charging" to isCharging,
-                    "queue_size" to pendingEvents.size
+                    "queue_size" to queueSize,
+                    "app_health" to mapOf(
+                        "collector_health" to healthTelemetry.collectorHealth.mapValues { (_, health) ->
+                            mapOf(
+                                "active" to health.active,
+                                "error_count" to health.errorCount,
+                                "degraded" to health.degraded
+                            )
+                        },
+                        "sync_failure_count" to healthTelemetry.syncFailureCount,
+                        "db_size_bytes" to healthTelemetry.dbSizeBytes,
+                        "uptime_ms" to healthTelemetry.uptimeMs
+                    )
                 )
             )
 
             val response = relayClient.postBatch(batch)
 
+            dataQualityEngine.recordSyncResult(true)
+
             database.eventDao().markUploaded(pendingEvents.map { it.eventId })
             database.segmentDao().markUploaded(pendingSegments.map { it.segmentId })
 
-            // §13.3 Data retention: prune raw events older than 14 days after successful sync
             database.eventDao().pruneOldEvents()
 
             Result.success()
         } catch (e: Exception) {
+            dataQualityEngine.recordSyncResult(false)
             Result.retry()
         }
     }
