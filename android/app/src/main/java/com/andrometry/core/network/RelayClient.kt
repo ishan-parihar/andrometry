@@ -1,11 +1,13 @@
 package com.andrometry.core.network
 
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -118,10 +120,36 @@ class RelayClient @Inject constructor(
 
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .addHeader("Content-Type", "application/json")
-                    .build()
-                chain.proceed(request)
+                val original = chain.request()
+                if (original.method == "POST") {
+                    // Compress request body with gzip (§14.2)
+                    val originalBody = original.body ?: return@addInterceptor chain.proceed(original)
+                    val buffer = okio.Buffer()
+                    originalBody.writeTo(buffer)
+                    val bytes = buffer.readByteArray()
+                    val compressed = java.io.ByteArrayOutputStream().use { bos ->
+                        GZIPOutputStream(bos).use { gos ->
+                            gos.write(bytes)
+                        }
+                        bos.toByteArray()
+                    }
+                    val compressedBody = compressed.toRequestBody(
+                        originalBody.contentType(),
+                        -1, // let OkHttp calculate content length
+                        compressed
+                    )
+                    val request = original.newBuilder()
+                        .header("Content-Encoding", "gzip")
+                        .header("Content-Type", "application/json")
+                        .method(original.method, compressedBody)
+                        .build()
+                    chain.proceed(request)
+                } else {
+                    val request = original.newBuilder()
+                        .addHeader("Content-Type", "application/json")
+                        .build()
+                    chain.proceed(request)
+                }
             }
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)

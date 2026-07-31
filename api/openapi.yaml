@@ -47,9 +47,18 @@ paths:
   /v1/batch:
     post:
       summary: Batch ingestion from device
+      description: |
+        Accepts batched events, segments, summaries, and context from Android devices.
+        Supports gzip compression via Content-Encoding: gzip header (§14.2).
+        Idempotent: duplicate batch_ids are deduplicated via INSERT OR IGNORE.
       tags: [Device]
       security:
         - BearerAuth: [device:ingest]
+      parameters:
+        - name: Content-Encoding
+          in: header
+          schema: { type: string, enum: [gzip] }
+          description: Optional gzip compression of request body
       requestBody:
         required: true
         content:
@@ -71,6 +80,20 @@ paths:
       responses:
         '200':
           description: Batch accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted_events: { type: integer }
+                  rejected_events: { type: integer }
+                  accepted_segments: { type: integer }
+                  accepted_summaries: { type: integer }
+                  missing_sequences: { type: array, items: { type: integer } }
+                  pending_interventions: { type: integer }
+                  server_time: { type: string, format: date-time }
+        '400':
+          description: Invalid JSON or gzip data
 
   /v1/context/current:
     get:

@@ -108,8 +108,8 @@ func main() {
 	mux.HandleFunc("GET /v1/health", h.HealthCheck)
 	mux.HandleFunc("GET /v1/health/detailed", h.HealthCheckDetailed)
 
-	// Device ingestion (device:ingest scope)
-	mux.Handle("POST /v1/batch", auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.BatchIngestion))))
+	// Device ingestion (device:ingest scope) — supports gzip decompression (§14.2)
+	mux.Handle("POST /v1/batch", middleware.GzipDecompress(auth(middleware.RequireScope("device:ingest")(http.HandlerFunc(h.BatchIngestion)))))
 
 	// Device: read pending interventions
 	mux.Handle("GET /v1/device/interventions", auth(middleware.RequireScope("device:read_interventions")(http.HandlerFunc(h.GetPendingInterventions))))
