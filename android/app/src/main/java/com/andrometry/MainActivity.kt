@@ -157,7 +157,7 @@ fun AndrometryApp(database: AndrometryDatabase, sensitiveModeManager: SensitiveM
             composable(Screen.Permissions.route) { PermissionStatusScreen() }
             composable(Screen.Sync.route) { SyncStatusScreen() }
             composable(Screen.Timeline.route) { DebugTimelineScreen() }
-            composable(Screen.Inbox.route) { InterventionInboxScreen() }
+            composable(Screen.Inbox.route) { InterventionInboxScreen(database) }
             composable(Screen.Privacy.route) { PrivacyScreen(sensitiveModeManager) }
             composable(Screen.Export.route) { ExportBackupScreen(database) }
         }

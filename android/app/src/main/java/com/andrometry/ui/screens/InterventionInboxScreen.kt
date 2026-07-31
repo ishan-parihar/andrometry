@@ -11,15 +11,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.andrometry.core.database.AndrometryDatabase
+import com.andrometry.core.database.InterventionEntity
+import com.google.gson.Gson
+import kotlinx.coroutines.launch
 
 /**
  * Intervention Inbox Screen — §6.4.6
  *
  * Shows proposed interventions from AI agents for user review.
+ * Fetches real interventions from the local database.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InterventionInboxScreen() {
+fun InterventionInboxScreen(database: AndrometryDatabase) {
     data class Intervention(
         val id: String,
         val agentId: String,
@@ -32,20 +37,28 @@ fun InterventionInboxScreen() {
     )
 
     var interventions by remember { mutableStateOf<List<Intervention>>(emptyList()) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        interventions = listOf(
+        val pending = database.interventionDao().getPending(20)
+        interventions = pending.map { entity ->
+            val payload = try {
+                Gson().fromJson(entity.payload, Map::class.java) as? Map<String, Any> ?: emptyMap()
+            } catch (e: Exception) {
+                emptyMap()
+            }
+
             Intervention(
-                id = "int-1", agentId = "coach", type = "nudge",
-                title = "Take a break", message = "You've been in deep work for 2 hours. A 10-minute break can restore focus.",
-                severity = "low", status = "pending", timestamp = "14:22"
-            ),
-            Intervention(
-                id = "int-2", agentId = "coach", type = "suggestion",
-                title = "Review daily goals", message = "You completed 3 of 5 goals today. Consider prioritizing the remaining ones.",
-                severity = "medium", status = "pending", timestamp = "15:00"
+                id = entity.interventionId,
+                agentId = entity.agentId,
+                type = entity.interventionType,
+                title = (payload["title"] as? String) ?: entity.interventionType,
+                message = (payload["message"] as? String) ?: "No message",
+                severity = (payload["severity"] as? String) ?: "low",
+                status = entity.status,
+                timestamp = entity.createdAt.ifEmpty { entity.timestamp }
             )
-        )
+        }
     }
 
     Scaffold(
@@ -100,7 +113,7 @@ fun InterventionInboxScreen() {
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "From: ${intervention.agentId} · ${intervention.timestamp}",
+                            "From: ${intervention.agentId} · ${intervention.status}",
                             modifier = Modifier.padding(top = 8.dp),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -112,11 +125,21 @@ fun InterventionInboxScreen() {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(
-                                onClick = { /* Accept */ },
+                                onClick = {
+                                    scope.launch {
+                                        database.interventionDao().updateStatus(intervention.id, "accepted")
+                                        interventions = interventions.filter { it.id != intervention.id }
+                                    }
+                                },
                                 modifier = Modifier.weight(1f)
                             ) { Text("Accept") }
                             OutlinedButton(
-                                onClick = { /* Dismiss */ },
+                                onClick = {
+                                    scope.launch {
+                                        database.interventionDao().updateStatus(intervention.id, "dismissed")
+                                        interventions = interventions.filter { it.id != intervention.id }
+                                    }
+                                },
                                 modifier = Modifier.weight(1f)
                             ) { Text("Dismiss") }
                         }

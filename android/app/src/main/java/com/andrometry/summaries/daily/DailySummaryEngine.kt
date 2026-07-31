@@ -2,6 +2,7 @@ package com.andrometry.summaries.daily
 
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.DailySummaryEntity
+import com.andrometry.inference.work_patterns.WorkPatternEngine
 import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.*
@@ -19,12 +20,13 @@ import javax.inject.Singleton
  * - distraction: total, social, browser, during focus
  * - interruptions: notifications, unlocks, app switches
  * - focus: sessions, successful, average interruptions
- * - work patterns: focus bout, switching rate, fragmentation
+ * - work patterns: computed by WorkPatternEngine (§39)
  * - scores: alignment, productivity, wellbeing, focus control, sleep quality, readiness
  */
 @Singleton
 class DailySummaryEngine @Inject constructor(
-    private val database: AndrometryDatabase
+    private val database: AndrometryDatabase,
+    private val workPatternEngine: WorkPatternEngine
 ) {
     data class DailySummary(
         val date: String,
@@ -96,6 +98,7 @@ class DailySummaryEngine @Inject constructor(
 
     /**
      * Generates a daily summary for the given date.
+     * Delegates work pattern computation to WorkPatternEngine (§39).
      */
     suspend fun generateSummary(date: Date): DailySummary {
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -171,8 +174,29 @@ class DailySummaryEngine @Inject constructor(
             }.toDouble() / focusSessions
         } else 0.0
 
+        // Delegate to WorkPatternEngine (§39) for comprehensive work pattern metrics
+        val workMetrics = workPatternEngine.computeDailyMetrics(dateStr)
+
+        // Calculate late night work minutes from segments
+        val lateNightSegments = database.segmentDao().getSegmentsInRange(startStr, endStr)
+            .filter {
+                val hour = try {
+                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(it.startTime)?.let { t ->
+                        Calendar.getInstance().apply { time = t }.get(Calendar.HOUR_OF_DAY)
+                    } ?: 0
+                } catch (e: Exception) { 0 }
+                hour in 22..23 || hour in 0..5
+            }
+        val lateNightWorkMinutes = lateNightSegments.sumOf {
+            try {
+                val start = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(it.startTime)?.time ?: 0L
+                val end = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).parse(it.endTime)?.time ?: 0L
+                ((end - start) / 60000).toInt().coerceAtLeast(0)
+            } catch (e: Exception) { 0 }
+        }
+
         // Calculate scores
-        val productivityScore = (deepWorkMinutes.toDouble() / 480.0).coerceIn(0.0, 1.0) // 8 hours target
+        val productivityScore = (deepWorkMinutes.toDouble() / 480.0).coerceIn(0.0, 1.0)
         val focusControlScore = if (focusSessions > 0) {
             successfulSessions.toDouble() / focusSessions
         } else 0.5
@@ -182,16 +206,16 @@ class DailySummaryEngine @Inject constructor(
         return DailySummary(
             date = dateStr,
             timezone = TimeZone.getDefault().id,
-            sleep = null, // Would be populated from sleep data
-            health = null, // Would be populated from health data
+            sleep = null,
+            health = null,
             work = WorkMetrics(
                 deepWorkMinutes = deepWorkMinutes,
                 shallowWorkMinutes = shallowWorkMinutes,
-                meetingMinutes = meetingMinutes,
+                meetingMinutes = workMetrics.totalMeetingMinutes,
                 adminMinutes = 0
             ),
             distraction = DistractionMetrics(
-                totalMinutes = distractionMinutes,
+                totalMinutes = workMetrics.totalDistractionMinutes,
                 socialMinutes = socialMinutes,
                 browserHoppingMinutes = 0,
                 duringFocusMinutes = 0
@@ -207,10 +231,10 @@ class DailySummaryEngine @Inject constructor(
                 averageInterruptions = avgInterruptions
             ),
             workPatterns = WorkPatternMetrics(
-                averageFocusBoutMinutes = if (focusSessions > 0) deepWorkMinutes.toDouble() / focusSessions else 0.0,
-                switchingRatePerHour = 0.0,
-                meetingFragmentationScore = 0.0,
-                lateNightWorkMinutes = 0
+                averageFocusBoutMinutes = workMetrics.averageFocusBoutMinutes,
+                switchingRatePerHour = workMetrics.switchingRatePerHour,
+                meetingFragmentationScore = workMetrics.meetingFragmentationScore,
+                lateNightWorkMinutes = lateNightWorkMinutes
             ),
             scores = ScoreMetrics(
                 alignment = alignmentScore,
