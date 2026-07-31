@@ -110,8 +110,9 @@ class SyncWorker @AssistedInject constructor(
 
             // §23.5: Safe DB size check — use query to get page count * page size
             val dbSizeBytes = try {
-                val cursor = database.query("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()", null)
-                if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+                database.query("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()", null).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+                }
             } catch (e: Exception) {
                 0L
             }
