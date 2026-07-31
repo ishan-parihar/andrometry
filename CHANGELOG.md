@@ -2,6 +2,31 @@
 
 All notable changes to the Andrometry project are documented here.
 
+## [0.1.3] — 2026-07-31
+
+### Server
+
+#### Privacy & Security (§22.3)
+- Sensitive mode redaction applied to context, timeline, and SSE responses
+- `governor/redaction.go`: RedactContext strips location/app/calendar data when sensitive mode active
+- IsLocationLabel/IsAppLabel with O(1) map lookup for segment label redaction
+- Cached sensitive mode in Handler struct (avoids DB hit per request)
+- Cache invalidated on SetSensitiveMode endpoint
+
+#### Background Workers
+- `handlers/worker.go`: Background daily summary worker (runs on startup + every 6h for active users)
+- `db/store.go`: GetActiveDevices method for finding active devices
+
+### Android
+
+#### Intervention Notification Delivery (§34)
+- `InterventionNotificationService.kt`: Hilt @Singleton service polling every 30s
+- Shows Android notifications with severity-based priority
+- Marks interventions as delivered per §34.2 lifecycle
+- Wired into AndrometryApp.onCreate()
+
+---
+
 ## [0.1.2] — 2026-07-31
 
 ### Server

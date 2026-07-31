@@ -1,6 +1,7 @@
 package com.andrometry
 
 import android.app.Application
+import com.andrometry.agents.interventions.InterventionNotificationService
 import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.sync.queue.SyncQueue
 import com.andrometry.sync.queue.CollectorScheduler
@@ -11,6 +12,7 @@ import javax.inject.Inject
  * Application class with Hilt dependency injection.
  *
  * Wires all collector scheduling per architecture §8 tiered collection strategy.
+ * Starts intervention notification delivery (§34) for AI agent interventions.
  * ScreenReceiver is declared in AndroidManifest.xml and gets Hilt injection
  * automatically via @AndroidEntryPoint.
  */
@@ -20,6 +22,7 @@ class AndrometryApp : Application() {
     @Inject lateinit var database: AndrometryDatabase
     @Inject lateinit var syncQueue: SyncQueue
     @Inject lateinit var collectorScheduler: CollectorScheduler
+    @Inject lateinit var interventionNotificationService: InterventionNotificationService
 
     override fun onCreate() {
         super.onCreate()
@@ -29,5 +32,8 @@ class AndrometryApp : Application() {
 
         // Schedule all collector workers per architecture §8 tiered collection
         collectorScheduler.scheduleAll(this)
+
+        // Start intervention notification delivery (§34)
+        interventionNotificationService.start()
     }
 }
