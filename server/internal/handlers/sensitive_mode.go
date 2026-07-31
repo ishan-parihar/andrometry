@@ -50,6 +50,9 @@ func (h *Handler) SetSensitiveMode(w http.ResponseWriter, r *http.Request) {
 	// Persist to DB
 	_ = h.DB.SaveSensitiveModeSettings(governor.MarshalSensitiveMode(mode))
 
+	// Invalidate cache so next loadSensitiveMode() picks up the change
+	h.invalidateSensitiveModeCache()
+
 	respondJSON(w, http.StatusOK, mode)
 }
 

@@ -30,6 +30,7 @@ type Handler struct {
 	MaxBatchSegments  int
 	MaxBatchSummaries int
 	SSEPollInterval time.Duration
+	cachedSM        *governor.SensitiveMode // cached sensitive mode, nil = not loaded yet
 }
 
 // NewHandler creates a new Handler with the given database and default policy.
@@ -123,6 +124,28 @@ func generateID() string {
 
 func nowUTC() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// loadSensitiveMode retrieves the current sensitive mode settings, using a cache.
+// The cache is invalidated when SetSensitiveMode handler is called.
+func (h *Handler) loadSensitiveMode() governor.SensitiveMode {
+	if h.cachedSM != nil {
+		return *h.cachedSM
+	}
+	settings, err := h.DB.GetSensitiveModeSettings()
+	if err != nil {
+		sm := governor.DefaultSensitiveMode()
+		h.cachedSM = &sm
+		return sm
+	}
+	sm := governor.UnmarshalSensitiveMode(settings)
+	h.cachedSM = &sm
+	return sm
+}
+
+// invalidateSensitiveModeCache clears the cached sensitive mode.
+func (h *Handler) invalidateSensitiveModeCache() {
+	h.cachedSM = nil
 }
 
 // --- Device Ingestion ---
@@ -397,6 +420,12 @@ func (h *Handler) GetCurrentContext(w http.ResponseWriter, r *http.Request) {
 	var contextData map[string]interface{}
 	json.Unmarshal([]byte(ctx.Context), &contextData)
 
+	// Apply sensitive mode redaction (§22.3)
+	sm := h.loadSensitiveMode()
+	if sm.Active {
+		contextData = governor.RedactContext(contextData, sm)
+	}
+
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"timestamp": ctx.Timestamp,
 		"timezone":  ctx.Timezone,
@@ -460,6 +489,9 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		segments = segments[:limit]
 	}
 
+	// Load sensitive mode for redaction (§22.3)
+	sm := h.loadSensitiveMode()
+
 	// Convert to API response format
 	type segmentResp struct {
 		SegmentID   string      `json:"segment_id"`
@@ -477,14 +509,30 @@ func (h *Handler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 	for _, s := range segments {
 		var payload interface{}
 		json.Unmarshal([]byte(s.Payload), &payload)
+
+		label := s.Label
+		confidence := s.Confidence
+
+		// Apply sensitive mode redaction to segment labels (§22.3)
+		if sm.Active {
+			if sm.RedactLocation && governor.IsLocationLabel(label) {
+				label = "[redacted]"
+				confidence = 0.0
+			}
+			if sm.RedactAppUsage && governor.IsAppLabel(label) {
+				label = "[redacted]"
+				confidence = 0.0
+			}
+		}
+
 		resp = append(resp, segmentResp{
 			SegmentID:   s.SegmentID,
 			SegmentType: s.SegmentType,
 			Layer:       s.Layer,
 			Start:       s.StartTime,
 			End:         s.EndTime,
-			Label:       s.Label,
-			Confidence:  s.Confidence,
+			Label:       label,
+			Confidence:  confidence,
 			Version:     s.Version,
 			Payload:     payload,
 		})
@@ -1592,6 +1640,12 @@ func (h *Handler) sendContextEvent(w http.ResponseWriter, flusher http.Flusher, 
 
 	var contextData map[string]interface{}
 	json.Unmarshal([]byte(ctx.Context), &contextData)
+
+	// Apply sensitive mode redaction (§22.3)
+	sm := h.loadSensitiveMode()
+	if sm.Active {
+		contextData = governor.RedactContext(contextData, sm)
+	}
 
 	event := map[string]interface{}{
 		"event":     "context_changed",

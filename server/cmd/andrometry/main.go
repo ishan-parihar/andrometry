@@ -242,6 +242,9 @@ func main() {
 		log.Printf("[retention] warning: failed to enforce policy: %v", err)
 	}
 
+	// Start background daily summary worker (generates summaries for active users)
+	h.StartDailySummaryWorker(6 * time.Hour)
+
 	// Periodic retention enforcement every 24 hours
 	go func() {
 		ticker := time.NewTicker(24 * time.Hour)

@@ -1371,6 +1371,31 @@ func (db *DB) GetCorrectionStats(userID string, limit int) ([]map[string]interfa
 	return results, nil
 }
 
+// GetActiveDevices retrieves devices seen within the last N days.
+func (db *DB) GetActiveDevices(days int) ([]models.Device, error) {
+	rows, err := db.Query(`
+		SELECT device_id, user_id, created_at, last_seen_at, client_version, status
+		FROM devices
+		WHERE last_seen_at >= datetime('now', ?)
+		ORDER BY last_seen_at DESC
+	`, fmt.Sprintf("-%d days", days))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var devices []models.Device
+	for rows.Next() {
+		var d models.Device
+		err := rows.Scan(&d.DeviceID, &d.UserID, &d.CreatedAt, &d.LastSeenAt, &d.ClientVersion, &d.Status)
+		if err != nil {
+			return nil, err
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
 // --- DB Stats for Health Endpoint ---
 
 // DBStats holds database statistics for the health endpoint.
