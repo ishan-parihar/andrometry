@@ -2,6 +2,51 @@
 
 All notable changes to the Andrometry project are documented here.
 
+## [0.1.2] — 2026-07-31
+
+### Server
+
+#### New Endpoints
+- `GET /v1/agent/interventions` — List all interventions with optional status/limit filter (`agent:interventions:read`)
+
+#### New DB Methods
+- `GetAllInterventions` — Query interventions with status filter and limit
+
+### Android
+
+#### Sync Improvements (§14.2)
+- SyncWorker now includes five_minute and hourly summaries in batch payload
+- SyncWorker now includes current context in batch payload
+- SyncWorker marks summaries as synced after successful upload
+- Added `getPendingSync()` and `markSynced()` methods to FiveMinuteSummaryDao and HourlySummaryDao
+
+#### Adaptive Scheduling (§8, §24)
+- CollectorScheduler wired with BatteryProfileManager for adaptive intervals
+- WorkManager intervals clamped to 15-min minimum per §8.3
+- Added DailySummaryWorker (24h interval) and WeeklySummaryWorker (7d interval)
+
+#### Readiness Engine Integration (§40)
+- ContextInferenceEngine wired with non-nullable ReadinessEngine
+- Delegates fatigue/readiness scoring to ReadinessEngine.computeReadiness()
+- Added cognitiveLoad, suggestedBreak, bestNextAction, sleepDebtMinutes, recommendedFocusIntensity fields
+- Removed dead calculateFatigueProbability method
+
+#### Work Pattern Integration (§39)
+- DailySummaryEngine wired with WorkPatternEngine for real work pattern metrics
+- Uses real segment data for meeting minutes, distraction minutes, late night work
+
+#### Intervention Inbox (§6.4.6)
+- InterventionInboxScreen fetches real data from local database
+- Accept/Dismiss actions update status in DB and remove from UI
+
+### MCP Server
+- 66 tools (up from 65) — `get_interventions` (status/limit filter)
+
+### OpenAPI Spec
+- Documented `GET /v1/agent/interventions` with status/limit parameters
+
+---
+
 ## [0.1.1] — 2026-07-31
 
 ### Server

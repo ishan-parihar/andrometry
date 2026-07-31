@@ -290,6 +290,22 @@ paths:
           description: Observations list
 
   /v1/agent/interventions:
+    get:
+      summary: List all interventions
+      tags: [Agent]
+      security:
+        - BearerAuth: [agent:interventions:read]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+          description: Filter by intervention status
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        '200':
+          description: Interventions list
     post:
       summary: Propose intervention
       tags: [Agent]
