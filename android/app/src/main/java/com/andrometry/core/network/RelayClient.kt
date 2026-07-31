@@ -121,7 +121,7 @@ class RelayClient @Inject constructor(
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val original = chain.request()
-                if (original.method == "POST") {
+                if (original.method == "POST" && original.url.encodedPath.contains("/v1/batch")) {
                     // Compress request body with gzip (§14.2)
                     val originalBody = original.body ?: return@addInterceptor chain.proceed(original)
                     val buffer = okio.Buffer()
