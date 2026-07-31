@@ -1075,6 +1075,11 @@ func (h *Handler) PostGoal(w http.ResponseWriter, r *http.Request) {
 		Target   map[string]interface{} `json:"target"`
 	}
 
+	if len(body) == 0 {
+		respondError(w, http.StatusBadRequest, "empty goal body")
+		return
+	}
+
 	if err := json.Unmarshal(body, &goal); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid JSON")
 		return
