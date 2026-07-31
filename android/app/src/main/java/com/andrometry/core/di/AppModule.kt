@@ -5,6 +5,7 @@ import com.andrometry.core.database.AndrometryDatabase
 import com.andrometry.core.database.SequenceGenerator
 import com.andrometry.core.network.RelayClient
 import com.andrometry.sync.queue.SyncQueue
+import com.andrometry.agents.interventions.InterventionNotificationService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,15 +58,5 @@ object AppModule {
         @Named("device_token") deviceToken: String
     ): RelayClient {
         return RelayClient(relayUrl, deviceToken)
-    }
-
-    @Provides
-    @Singleton
-    fun provideSyncQueue(
-        @ApplicationContext context: Context,
-        database: AndrometryDatabase,
-        relayClient: RelayClient
-    ): SyncQueue {
-        return SyncQueue(context, database, relayClient)
     }
 }
