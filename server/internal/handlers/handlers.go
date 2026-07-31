@@ -143,6 +143,7 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		SchemaVersion int                      `json:"schema_version"`
 		SequenceStart int64                    `json:"sequence_start"`
 		SequenceEnd   int64                    `json:"sequence_end"`
+		SentAt        string                   `json:"sent_at"`
 		Events        []map[string]interface{} `json:"events"`
 		Segments      []map[string]interface{} `json:"segments"`
 		Summaries     []map[string]interface{} `json:"summaries"`
@@ -156,6 +157,22 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uid := userID(r)
+
+	// Calculate sync latency if sent_at is provided (§14.2)
+	if batch.SentAt != "" {
+		if sentAt, err := time.Parse(time.RFC3339, batch.SentAt); err == nil {
+			syncLatency := time.Since(sentAt)
+			log.Printf("[batch] sync latency: %s (sent_at: %s, batch: %s)", syncLatency.Round(time.Millisecond), batch.SentAt, batch.BatchID)
+		}
+	}
+
+	// Detect heartbeat-only batches (§14.4 delta sync)
+	isHeartbeat := len(batch.Events) == 0 && len(batch.Segments) == 0 && len(batch.Summaries) == 0 && len(batch.Context) == 0
+	if isHeartbeat {
+		log.Printf("[batch] heartbeat from device %s (battery: %.0f%%, queue: %v)", batch.DeviceID,
+			getFloat64FromMap(batch.DeviceState, "battery")*100,
+			getIntFromMap(batch.DeviceState, "queue_size"))
+	}
 
 	// Enforce batch size limits — truncate and track original counts
 	origEvents := len(batch.Events)

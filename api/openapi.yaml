@@ -72,6 +72,7 @@ paths:
                 schema_version: { type: integer }
                 sequence_start: { type: integer, format: int64 }
                 sequence_end: { type: integer, format: int64 }
+                sent_at: { type: string, format: date-time, description: 'ISO 8601 timestamp when batch was sent, used for sync latency calculation' }
                 events: { type: array, items: { type: object } }
                 segments: { type: array, items: { type: object } }
                 summaries: { type: array, items: { type: object } }
