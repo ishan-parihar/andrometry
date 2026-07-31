@@ -108,9 +108,10 @@ class SyncWorker @AssistedInject constructor(
             val batteryLevel = batteryManager.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) / 100.0
             val isCharging = batteryManager.isCharging
 
-            // §23.5: Safe DB size check — totalSize can throw on some Android versions
+            // §23.5: Safe DB size check — use query to get page count * page size
             val dbSizeBytes = try {
-                database.getOpenHelper().writableDatabase.totalSize
+                val cursor = database.query("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()", null)
+                if (cursor.moveToFirst()) cursor.getLong(0) else 0L
             } catch (e: Exception) {
                 0L
             }

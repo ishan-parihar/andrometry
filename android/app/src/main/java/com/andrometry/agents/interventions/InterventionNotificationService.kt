@@ -123,11 +123,10 @@ class InterventionNotificationService @Inject constructor(
             .setPriority(priority)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setTag("$NOTIFICATION_TAG:$id")
             .build()
 
         try {
-            NotificationManagerCompat.from(context).notify(id, notification)
+            NotificationManagerCompat.from(context).notify("$NOTIFICATION_TAG:$id", id, notification)
         } catch (e: SecurityException) {
             // Notification permission not granted — silently ignore
         }

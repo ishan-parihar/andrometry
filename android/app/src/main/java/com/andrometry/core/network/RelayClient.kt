@@ -133,11 +133,7 @@ class RelayClient @Inject constructor(
                         }
                         bos.toByteArray()
                     }
-                    val compressedBody = compressed.toRequestBody(
-                        originalBody.contentType(),
-                        -1, // let OkHttp calculate content length
-                        compressed
-                    )
+                    val compressedBody = compressed.toRequestBody(originalBody.contentType())
                     val request = original.newBuilder()
                         .header("Content-Encoding", "gzip")
                         .header("Content-Type", "application/json")
