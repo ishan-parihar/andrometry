@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andrometry/server/internal/audit"
 	"github.com/andrometry/server/internal/db"
 	"github.com/andrometry/server/internal/governor"
 	"github.com/andrometry/server/internal/middleware"
@@ -1500,5 +1501,251 @@ func TestWipeData(t *testing.T) {
 	goals := resp["goals"].([]interface{})
 	if len(goals) != 0 {
 		t.Errorf("goals after wipe = %d, want 0", len(goals))
+	}
+}
+
+// --- Preferences tests (P1: configurable alignment weights) ---
+
+func TestPreferences_roundTrip(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Set preferences via array format
+	prefs := map[string]interface{}{
+		"preferences": []map[string]interface{}{
+			{"category": "alignment", "key": "deep_work_weight", "value": "0.8"},
+			{"category": "alignment", "key": "meeting_weight", "value": "0.6"},
+			{"category": "classification", "key": "notion_category", "value": "productivity"},
+		},
+	}
+	body, _ := json.Marshal(prefs)
+	req := httptest.NewRequest("PUT", "/v1/preferences", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PutPreferences(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("put preferences status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var putResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &putResp)
+	if putResp["updated"] != float64(3) {
+		t.Errorf("updated = %v, want 3", putResp["updated"])
+	}
+
+	// Get all preferences
+	req2 := httptest.NewRequest("GET", "/v1/preferences", nil)
+	req2 = req2.WithContext(withUserContext("primary"))
+	w2 := httptest.NewRecorder()
+	h.GetPreferences(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("get preferences status = %d, want %d", w2.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &resp)
+	preferences := resp["preferences"].(map[string]interface{})
+	alignment := preferences["alignment"].(map[string]interface{})
+	if alignment["deep_work_weight"] != "0.8" {
+		t.Errorf("deep_work_weight = %v, want 0.8", alignment["deep_work_weight"])
+	}
+
+	// Get filtered by category
+	req3 := httptest.NewRequest("GET", "/v1/preferences?category=classification", nil)
+	req3 = req3.WithContext(withUserContext("primary"))
+	w3 := httptest.NewRecorder()
+	h.GetPreferences(w3, req3)
+	var resp2 map[string]interface{}
+	json.Unmarshal(w3.Body.Bytes(), &resp2)
+	prefs2 := resp2["preferences"].(map[string]interface{})
+	if _, exists := prefs2["alignment"]; exists {
+		t.Error("should not include alignment category when filtering by classification")
+	}
+
+	// Delete a preference
+	req4 := httptest.NewRequest("DELETE", "/v1/preferences/alignment/deep_work_weight", nil)
+	req4.SetPathValue("category", "alignment")
+	req4.SetPathValue("key", "deep_work_weight")
+	req4 = req4.WithContext(withUserContext("primary"))
+	w4 := httptest.NewRecorder()
+	h.DeletePreference(w4, req4)
+	if w4.Code != http.StatusOK {
+		t.Fatalf("delete preference status = %d, want %d", w4.Code, http.StatusOK)
+	}
+
+	// Verify deleted
+	req5 := httptest.NewRequest("GET", "/v1/preferences?category=alignment", nil)
+	req5 = req5.WithContext(withUserContext("primary"))
+	w5 := httptest.NewRecorder()
+	h.GetPreferences(w5, req5)
+	var resp3 map[string]interface{}
+	json.Unmarshal(w5.Body.Bytes(), &resp3)
+	prefs3 := resp3["preferences"].(map[string]interface{})
+	alignment2 := prefs3["alignment"].(map[string]interface{})
+	if _, exists := alignment2["deep_work_weight"]; exists {
+		t.Error("deep_work_weight should be deleted")
+	}
+	if alignment2["meeting_weight"] != "0.6" {
+		t.Error("meeting_weight should still exist")
+	}
+}
+
+func TestPreferences_categoryMapFormat(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Set preferences via category+map format
+	prefs := map[string]interface{}{
+		"category": "alignment",
+		"preferences": map[string]interface{}{
+			"focus_weight":  "0.9",
+			"social_weight": "0.3",
+		},
+	}
+	body, _ := json.Marshal(prefs)
+	req := httptest.NewRequest("PUT", "/v1/preferences", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PutPreferences(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("put preferences status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var putResp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &putResp)
+	if putResp["updated"] != float64(2) {
+		t.Errorf("updated = %v, want 2", putResp["updated"])
+	}
+}
+
+func TestPreferences_empty(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/preferences", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetPreferences(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	preferences := resp["preferences"].(map[string]interface{})
+	if len(preferences) != 0 {
+		t.Errorf("preferences count = %d, want 0", len(preferences))
+	}
+}
+
+// --- Correction feedback tests (P1: feedback loop) ---
+
+func TestCorrectionFeedback_empty(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	req := httptest.NewRequest("GET", "/v1/corrections/feedback", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetCorrectionFeedback(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["total_corrections"] != float64(0) {
+		t.Errorf("total_corrections = %v, want 0", resp["total_corrections"])
+	}
+}
+
+func TestCorrectionFeedback_withCorrections(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Insert corrections via audit log (action must be 'correction' to match GetCorrectionStats query)
+	for i := 0; i < 3; i++ {
+		audit.Log(h.DB, "primary", "device", "test", "correction", "segment", fmt.Sprintf("seg-%d", i),
+			fmt.Sprintf(`{"old_label":"unknown","new_label":"deep_work","segment_updated":true}`))
+	}
+
+	req := httptest.NewRequest("GET", "/v1/corrections/feedback", nil)
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.GetCorrectionFeedback(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	totalCorrections := resp["total_corrections"].(float64)
+	if totalCorrections != 3 {
+		t.Errorf("total_corrections = %v, want 3", totalCorrections)
+	}
+}
+
+func TestApplyCorrectionFeedback(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// First create a segment to correct
+	_ = h.DB.UpsertSegment(&models.TimelineSegment{
+		SegmentID:   "seg-to-correct",
+		DeviceID:    "pixel-9",
+		UserID:      "primary",
+		SegmentType: "activity_segment",
+		Layer:       "activity",
+		StartTime:   "2026-01-01T10:00:00Z",
+		EndTime:     "2026-01-01T10:30:00Z",
+		Label:       "unknown",
+		Confidence:  0.5,
+		Version:     1,
+		ValidFrom:   "2026-01-01T10:00:00Z",
+		Payload:     `{}`,
+	})
+
+	// Apply correction feedback
+	feedback := map[string]interface{}{
+		"segment_id": "seg-to-correct",
+		"new_label":  "deep_work",
+		"reason":     "user_corrected",
+	}
+	body, _ := json.Marshal(feedback)
+	req := httptest.NewRequest("POST", "/v1/corrections/feedback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostCorrectionFeedback(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("post correction feedback status = %d, want %d", w.Code, http.StatusCreated)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != "created" {
+		t.Errorf("status = %v, want created", resp["status"])
+	}
+	if resp["segment_updated"] != true {
+		t.Error("segment_updated should be true")
+	}
+
+	// Verify the segment was updated
+	segment, err := h.DB.GetSegmentByID("seg-to-correct")
+	if err != nil {
+		t.Fatalf("get segment: %v", err)
+	}
+	if segment.Label != "deep_work" {
+		t.Errorf("label = %v, want deep_work", segment.Label)
+	}
+	if segment.Version != 2 {
+		t.Errorf("version = %v, want 2", segment.Version)
+	}
+}
+
+func TestApplyCorrectionFeedback_missingFields(t *testing.T) {
+	h, _ := setupTestHandler(t)
+
+	// Missing segment_id
+	feedback := map[string]interface{}{
+		"new_label": "deep_work",
+	}
+	body, _ := json.Marshal(feedback)
+	req := httptest.NewRequest("POST", "/v1/corrections/feedback", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(withUserContext("primary"))
+	w := httptest.NewRecorder()
+	h.PostCorrectionFeedback(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d (missing segment_id)", w.Code, http.StatusBadRequest)
 	}
 }
