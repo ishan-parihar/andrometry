@@ -10,13 +10,10 @@ import (
 // This ensures summaries are created even if the device doesn't trigger
 // a batch ingestion that day.
 func (h *Handler) StartDailySummaryWorker(interval time.Duration) {
-	// Run immediately on startup
-	h.generateDailySummaries()
-
 	go func() {
+		h.generateDailySummaries()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-
 		for range ticker.C {
 			h.generateDailySummaries()
 		}

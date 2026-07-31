@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/andrometry/server/internal/auth"
@@ -31,6 +32,7 @@ type Handler struct {
 	MaxBatchSummaries int
 	SSEPollInterval time.Duration
 	cachedSM        *governor.SensitiveMode // cached sensitive mode, nil = not loaded yet
+	smMu            sync.RWMutex          // protects cachedSM
 }
 
 // NewHandler creates a new Handler with the given database and default policy.
@@ -129,6 +131,14 @@ func nowUTC() string {
 // loadSensitiveMode retrieves the current sensitive mode settings, using a cache.
 // The cache is invalidated when SetSensitiveMode handler is called.
 func (h *Handler) loadSensitiveMode() governor.SensitiveMode {
+	h.smMu.RLock()
+	if h.cachedSM != nil {
+		defer h.smMu.RUnlock()
+		return *h.cachedSM
+	}
+	h.smMu.RUnlock()
+	h.smMu.Lock()
+	defer h.smMu.Unlock()
 	if h.cachedSM != nil {
 		return *h.cachedSM
 	}
@@ -143,8 +153,9 @@ func (h *Handler) loadSensitiveMode() governor.SensitiveMode {
 	return sm
 }
 
-// invalidateSensitiveModeCache clears the cached sensitive mode.
 func (h *Handler) invalidateSensitiveModeCache() {
+	h.smMu.Lock()
+	defer h.smMu.Unlock()
 	h.cachedSM = nil
 }
 
