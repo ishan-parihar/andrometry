@@ -284,20 +284,23 @@ func (h *Handler) BatchIngestion(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Extract the batch date from the first segment if available, fallback to today.
+	// This is used for both daily and weekly summary targeting.
+	batchDate := time.Now().UTC().Format("2006-01-02")
+
 	if acceptedSegments > 0 && len(batch.Segments) > 0 {
-		// Extract date from first segment's timestamp (handles late syncs correctly)
-		segDate := time.Now().UTC().Format("2006-01-02")
 		if startTime, ok := batch.Segments[0]["start_time"].(string); ok && len(startTime) >= 10 {
-			segDate = startTime[:10]
+			batchDate = startTime[:10]
 		}
-		if err := h.Summarizer.GenerateDailySummary(uid, segDate, batchTz); err != nil {
-			log.Printf("[batch] summary generation failed for %s: %v", segDate, err)
+		if err := h.Summarizer.GenerateDailySummary(uid, batchDate, batchTz); err != nil {
+			log.Printf("[batch] daily summary generation failed for %s: %v", batchDate, err)
 		}
 	}
 
-	// Auto-generate weekly summary if enough daily summaries exist and no weekly exists yet
-	// Uses current date for the week check, not the batch date, to target the current week
-	if t, err := time.Parse("2006-01-02", time.Now().UTC().Format("2006-01-02")); err == nil {
+	// Auto-generate weekly summary if enough daily summaries exist.
+	// Uses batchDate (from first segment or today) to target the correct ISO week,
+	// so late-synced data for previous weeks also triggers weekly generation.
+	if t, err := time.Parse("2006-01-02", batchDate); err == nil {
 		year, week := t.ISOWeek()
 		weekStr := fmt.Sprintf("%d-W%02d", year, week)
 
