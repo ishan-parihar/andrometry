@@ -1237,6 +1237,105 @@ server.tool(
 );
 
 // ============================================================
+// Preferences Tools (P1: configurable alignment weights)
+// ============================================================
+
+server.tool(
+  "get_preferences",
+  "Get user preferences — alignment weights, classification overrides, and custom settings",
+  {
+    category: z.string().optional().describe("Filter by preference category (e.g., 'alignment', 'classification')"),
+  },
+  async ({ category }) => {
+    const params = category ? `?category=${category}` : "";
+    const data = await relayFetch(`/v1/preferences${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "set_preferences",
+  "Set user preferences — supports array format [{category,key,value}] or category+map format {category, preferences:{key:value}}",
+  {
+    preferences: z.array(z.object({
+      category: z.string().describe("Preference category"),
+      key: z.string().describe("Preference key"),
+      value: z.string().describe("Preference value"),
+    })).optional().describe("Array of preferences to upsert"),
+    category: z.string().optional().describe("Category for map format"),
+    preferences_map: z.record(z.any()).optional().describe("Key-value map for category+map format"),
+  },
+  async ({ preferences, category, preferences_map }) => {
+    let body;
+    if (preferences && preferences.length > 0) {
+      body = { preferences };
+    } else if (category && preferences_map) {
+      body = { category, preferences: preferences_map };
+    } else {
+      return { content: [{ type: "text", text: "Error: provide either 'preferences' array or 'category' + 'preferences_map'" }] };
+    }
+    const data = await relayFetch("/v1/preferences", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "delete_preference",
+  "Delete a single user preference by category and key",
+  {
+    category: z.string().describe("Preference category"),
+    key: z.string().describe("Preference key to delete"),
+  },
+  async ({ category, key }) => {
+    const data = await relayFetch(`/v1/preferences/${encodeURIComponent(category)}/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ============================================================
+// Correction Feedback Tools (P1: feedback loop)
+// ============================================================
+
+server.tool(
+  "get_correction_feedback",
+  "Get correction feedback statistics — label correction counts, correction rate, suggested classification adjustments",
+  {
+    limit: z.number().optional().describe("Max corrections to analyze (default 100)"),
+  },
+  async ({ limit }) => {
+    const params = limit ? `?limit=${limit}` : "";
+    const data = await relayFetch(`/v1/corrections/feedback${params}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+server.tool(
+  "apply_correction_feedback",
+  "Apply a label correction to a segment and record it for the classification feedback loop",
+  {
+    segment_id: z.string().describe("Segment ID to correct"),
+    new_label: z.string().describe("New label for the segment"),
+    old_label: z.string().optional().describe("Old label (auto-detected if not provided)"),
+    reason: z.string().optional().describe("Reason for the correction"),
+  },
+  async ({ segment_id, new_label, old_label, reason }) => {
+    const body = { segment_id, new_label };
+    if (old_label) body.old_label = old_label;
+    if (reason) body.reason = reason;
+    const data = await relayFetch("/v1/corrections/feedback", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
+// ============================================================
 // Start the server
 // ============================================================
 

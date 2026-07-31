@@ -1059,11 +1059,53 @@ const mcpTools = [
     requiredFields: ["baselines"],
     validates: (data) => { assert(Array.isArray(data.baselines), "Must have baselines array"); },
   },
+  // Preferences tools (P1: configurable alignment weights)
+  {
+    name: "get_preferences",
+    description: "Get user preferences — alignment weights, classification overrides, and custom settings",
+    endpoint: "/v1/preferences",
+    method: "GET",
+    requiredFields: ["preferences"],
+    validates: (data) => { assert(typeof data.preferences === 'object', "Must have preferences object"); },
+  },
+  {
+    name: "set_preferences",
+    description: "Set user preferences — supports array format or category+map format",
+    endpoint: "/v1/preferences",
+    method: "PUT",
+    requiredFields: ["status"],
+    validates: (data) => { assert(data.status === 'updated', "Must return updated status"); },
+  },
+  {
+    name: "delete_preference",
+    description: "Delete a single user preference by category and key",
+    endpoint: "/v1/preferences/test/test",
+    method: "DELETE",
+    requiredFields: ["status"],
+    validates: (data) => { assert(data.status === 'deleted', "Must return deleted status"); },
+  },
+  // Correction feedback tools (P1: feedback loop)
+  {
+    name: "get_correction_feedback",
+    description: "Get correction feedback statistics — label correction counts, correction rate, suggested adjustments",
+    endpoint: "/v1/corrections/feedback",
+    method: "GET",
+    requiredFields: ["label_corrections"],
+    validates: (data) => { assert(typeof data.label_corrections === 'object', "Must have label_corrections object"); },
+  },
+  {
+    name: "apply_correction_feedback",
+    description: "Apply a label correction to a segment and record it for the classification feedback loop",
+    endpoint: "/v1/corrections/feedback",
+    method: "POST",
+    requiredFields: ["status"],
+    validates: (data) => { assert(data.status === 'created', "Must return created status"); },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 59, `Expected 47 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 64, `Expected 64 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -1220,6 +1262,11 @@ const scopeMap = {
   get_baseline_comparison: "agent:goals:read",
   export_weekly_data: "admin",
   wipe_all_data: "admin",
+  get_preferences: "device:read_config",
+  set_preferences: "device:read_config",
+  delete_preference: "device:read_config",
+  get_correction_feedback: "agent:context:read",
+  apply_correction_feedback: "device:write_feedback",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
   const tool = mcpTools.find((t) => t.name === toolName);
