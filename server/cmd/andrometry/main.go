@@ -135,6 +135,7 @@ func main() {
 	mux.Handle("GET /v1/agent/observations", auth(middleware.RequireScope("agent:observations:write")(http.HandlerFunc(h.GetObservations))))
 
 	// Interventions
+	mux.Handle("GET /v1/agent/interventions", auth(middleware.RequireScope("agent:interventions:read")(http.HandlerFunc(h.GetAllInterventions))))
 	mux.Handle("POST /v1/agent/interventions", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.PostIntervention))))
 	mux.Handle("PATCH /v1/agent/interventions/{id}", auth(middleware.RequireScope("agent:interventions:write")(http.HandlerFunc(h.UpdateInterventionStatus))))
 

@@ -17,7 +17,10 @@ import java.util.concurrent.TimeUnit
  * HiltWorker for periodic sync — properly integrates with Hilt DI.
  * Respects sensitive mode: if active, sync is paused (§33 Policy Governor).
  *
- * Includes app_health telemetry in device_state (§23.5).
+ * Includes:
+ * - app_health telemetry in device_state (§23.5)
+ * - five_minute and hourly summaries in batch (§14.2)
+ * - current context in batch (§14.2)
  */
 @HiltWorker
 class SyncWorker @AssistedInject constructor(

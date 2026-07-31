@@ -1349,6 +1349,23 @@ server.tool(
   }
 );
 
+server.tool(
+  "get_interventions",
+  "List all interventions for the agent with optional status filter (proposed, approved_by_policy, delivered, accepted, dismissed, expired)",
+  {
+    status: z.string().optional().describe("Filter by intervention status"),
+    limit: z.number().optional().describe("Max results (default 50, max 200)"),
+  },
+  async ({ status, limit }) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (limit) params.set("limit", String(limit));
+    const qs = params.toString();
+    const data = await relayFetch(`/v1/agent/interventions${qs ? "?" + qs : ""}`);
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
 // ============================================================
 // Start the server
 // ============================================================

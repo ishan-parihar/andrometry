@@ -155,6 +155,7 @@ const mockResponses = {
     status: 200,
     data: {
       interventions: [],
+      count: 0,
     },
   },
   "POST:/v1/agent/interventions": {
@@ -1109,11 +1110,19 @@ const mcpTools = [
     requiredFields: ["interventions"],
     validates: (data) => { assert(Array.isArray(data.interventions), "Must have interventions array"); },
   },
+  {
+    name: "get_interventions",
+    description: "List all interventions for the agent with optional status filter",
+    endpoint: "/v1/agent/interventions",
+    method: "GET",
+    requiredFields: ["interventions", "count"],
+    validates: (data) => { assert(Array.isArray(data.interventions), "Must have interventions array"); assert(typeof data.count === 'number', "Must have count"); },
+  },
 ];
 
 // Test 1: Tool count matches architecture
 console.log("[test] Test 1: Tool count matches architecture");
-assert(mcpTools.length === 65, `Expected 65 tools, got ${mcpTools.length}`);
+assert(mcpTools.length === 66, `Expected 66 tools, got ${mcpTools.length}`);
 console.log(`  ✓ All ${mcpTools.length} MCP tools defined\n`);
 
 // Test 2: All tools have required fields
@@ -1276,6 +1285,7 @@ const scopeMap = {
   get_correction_feedback: "agent:context:read",
   apply_correction_feedback: "device:write_feedback",
   get_pending_interventions: "device:read_interventions",
+  get_interventions: "agent:interventions:read",
 };
 for (const [toolName, scope] of Object.entries(scopeMap)) {
   const tool = mcpTools.find((t) => t.name === toolName);

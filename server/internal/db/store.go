@@ -480,6 +480,41 @@ func (db *DB) GetPendingInterventions(userID string, limit int) ([]models.Interv
 	return interventions, nil
 }
 
+// GetAllInterventions retrieves all interventions for a user with optional status filter.
+func (db *DB) GetAllInterventions(userID string, status string, limit int) ([]models.Intervention, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `
+		SELECT intervention_id, user_id, timestamp, agent_id, intervention_type, status, payload, created_at, updated_at
+		FROM interventions
+		WHERE user_id = ?`
+	args := []interface{}{userID}
+	if status != "" {
+		query += ` AND status = ?`
+		args = append(args, status)
+	}
+	query += ` ORDER BY created_at DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var interventions []models.Intervention
+	for rows.Next() {
+		var i models.Intervention
+		err := rows.Scan(&i.InterventionID, &i.UserID, &i.Timestamp, &i.AgentID, &i.InterventionType, &i.Status, &i.Payload, &i.CreatedAt, &i.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		interventions = append(interventions, i)
+	}
+	return interventions, nil
+}
+
 // UpdateInterventionStatus updates the status of an intervention.
 func (db *DB) UpdateInterventionStatus(interventionID, status string) error {
 	_, err := db.Exec(`

@@ -795,6 +795,32 @@ func (h *Handler) GetPendingInterventions(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// GetAllInterventions handles GET /v1/agent/interventions.
+// Returns all interventions for the authenticated agent, with optional status filter.
+func (h *Handler) GetAllInterventions(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	status := r.URL.Query().Get("status")
+	limitStr := r.URL.Query().Get("limit")
+	limit := 50
+	if limitStr != "" {
+		if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 200 {
+			limit = n
+		}
+	}
+	interventions, err := h.DB.GetAllInterventions(uid, status, limit)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to query interventions")
+		return
+	}
+	if interventions == nil {
+		interventions = []models.Intervention{}
+	}
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"interventions": interventions,
+		"count":        len(interventions),
+	})
+}
+
 // --- Feedback ---
 
 // PostFeedback handles POST /v1/feedback.
