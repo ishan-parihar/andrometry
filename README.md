@@ -1,3 +1,14 @@
+<!-- T2I HERO SPEC — Subject: a personal context engine — a phone (Android) on the left emitting a stream of life signals (app usage, screen state, calendar, location, health, notifications) into a local-first relay server (center), which serves structured context snapshots to an AI agent on the right. Composition: left-to-right signal pipeline; confident, warm minimalism; measurement/regression motif (confidence bars, timestamps). Palette: deep indigo #1e1b4b → electric teal #2dd4bf accent → warm amber #f59e0b for agent intervention. Style: flat vector, dark UI, glowing data flows, no text. 16:9. -->
+
+![Kotlin](https://img.shields.io/badge/Kotlin-2021-orange?logo=kotlin)
+![Go](https://img.shields.io/badge/Go-1.22-00ADD9?logo=go)
+![MCP](https://img.shields.io/badge/MCP-Server-orange?logo=modelcontextprotocol)
+![SQLite](https://img.shields.io/badge/SQLite-ACID-003B57?logo=sqlite)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Tests](https://img.shields.io/badge/tests-152%20passing-brightgreen)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+
+
 <p align="center">
   <img src="assets/readme/andrometry-hero.svg" alt="Andrometry — Personal Context Engine" width="100%" />
 </p>
@@ -64,6 +75,19 @@
 | Agents can't learn from their interventions | Closed-loop: observe → intervene → feedback → recalibrate |
 | "Productivity" is subjective | Server-configurable alignment weights via PreferencesBridge |
 | Activity oscillation (rapid switching) | 120s temporal hysteresis with sensor bypass |
+
+## How it compares
+
+| Capability | Andrometry | Notion + AI | Rewind / Microsoft Recall | Obsidian + plugins |
+|---|---|---|---|---|
+| **Agent-native context API** | ✅ REST + MCP + SSE (`/v1/context`, `/v1/briefing`) | ❌ no agent surface | ❌ recall only | ⚠️ manual export |
+| **On-device inference** | ✅ 15 activity types, 0.0–1.0 confidence, hysteresis | ❌ cloud AI | ⚠️ device indexing | ❌ |
+| **Closed feedback loop** | ✅ observe → intervene → feedback → recalibrate | ❌ | ❌ | ❌ |
+| **Privacy default** | ✅ local-first, metadata-only, sensitive mode, kill switch | ❌ cloud sync | ⚠️ on-device but OS-level | ✅ local files |
+| **Deploys self-hosted** | ✅ single Go binary + SQLite, $4/mo VPS | ❌ | ❌ | ✅ |
+| **Intervention outcomes** | ✅ goals/habits/outcomes tracked against interventions | ❌ | ❌ | ❌ |
+
+Andrometry is the only one of the four built *for agents*: every signal is exposed as a queryable, confidence-scored context object over a scoped-token API — not a chat thread or a file folder.
 
 ## What It Tracks
 
@@ -354,7 +378,7 @@ npm start
 ## Testing
 
 ```bash
-# Go unit tests (9 packages, 136 functions)
+# Go unit tests (9 packages, 152 functions)
 cd server && go test ./... -count=1
 
 # MCP tools (59 tools)
