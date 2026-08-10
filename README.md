@@ -403,4 +403,4 @@ Configure in the app or via server preferences:
 
 ## License
 
-Private — Personal project.
+MIT — see [`LICENSE`](LICENSE). Personal project, open for reference and contribution.
