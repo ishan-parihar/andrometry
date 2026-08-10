@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  server:
+    name: go server gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build
+        run: cd server && go build ./...
+      - name: Test
+        run: cd server && go test ./... -count=1
+
+  mcp:
+    name: mcp node gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: cd agents/mcp && npm install
+      - name: Schema contracts
+        run: node test/schema/test_schema_contracts.js
