@@ -8,6 +8,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ishan-parihar/andrometry/actions"><img src="https://img.shields.io/github/actions/workflow/status/ishan-parihar/andrometry/ci.yml?branch=master&style=flat-square&label=CI" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/status-operational-brightgreen?style=flat-square" alt="operational">
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#api-reference">API</a> ·
