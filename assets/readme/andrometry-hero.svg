@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" width="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" width="100%" role="img" aria-labelledby="title desc">
+  <title id="title">Andrometry — personal context engine for AI-agent alignment</title>
+  <desc id="desc">Local-first personal observability: an Android collector app infers your context — activity, focus, fatigue, alignment — and a minimal relay server exposes it to AI agents via APIs and MCP tools.</desc>
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
