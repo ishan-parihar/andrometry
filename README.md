@@ -1,6 +1,7 @@
 <!-- T2I HERO SPEC — Subject: a personal context engine — a phone (Android) on the left emitting a stream of life signals (app usage, screen state, calendar, location, health, notifications) into a local-first relay server (center), which serves structured context snapshots to an AI agent on the right. Composition: left-to-right signal pipeline; confident, warm minimalism; measurement/regression motif (confidence bars, timestamps). Palette: deep indigo #1e1b4b → electric teal #2dd4bf accent → warm amber #f59e0b for agent intervention. Style: flat vector, dark UI, glowing data flows, no text. 16:9. -->
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2021-orange?logo=kotlin)
+![LOC](https://img.shields.io/badge/LOC-26.1K-informational?style=flat-square)
 [![CI](https://github.com/ishan-parihar/andrometry/actions/workflows/ci.yml/badge.svg)](https://github.com/ishan-parihar/andrometry/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/Go-1.22-00ADD9?logo=go)
 ![MCP](https://img.shields.io/badge/MCP-Server-orange?logo=modelcontextprotocol)
@@ -435,3 +436,14 @@ Configure in the app or via server preferences:
 ## License
 
 MIT — see [`LICENSE`](LICENSE). Personal project, open for reference and contribution.
+
+---
+
+## ☕ Support & Sponsorship
+
+If you find this project useful, consider supporting ongoing development:
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?style=flat-square&logo=github)](https://github.com/sponsors/ishan-parihar)
+[![Donate](https://img.shields.io/badge/Donate-Razorpay-3395FF?style=flat-square)](https://rzp.io/rzp/ishan-parihar)
+
+Your support funds new features, releases, and infrastructure for the whole ecosystem.
