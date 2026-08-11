@@ -20,7 +20,7 @@
 // Minimal working example showing the most common use case
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 <!-- For libraries: -->
 
@@ -79,7 +79,7 @@ apt install {package}
 
 -->
 
-## ✨ Features
+## Features
 
 <!-- Very detailed feature descriptions, organized by area.
      This is the longest section of the README.
@@ -93,7 +93,7 @@ apt install {package}
 
 <!-- Description with code examples -->
 
-## 🤝 Contributing
+## Contributing
 
 Please read the [contributing guide](CONTRIBUTING.md) before submitting a PR.
 
@@ -113,6 +113,6 @@ go test -race -tags=integration -timeout=300s ./...
 golangci-lint run --fix ./...
 -->
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
