@@ -27,7 +27,7 @@ The template includes commented-out sections for applications (binary download t
 
 The goal: a new contributor should be able to clone the repo, make a change, and run the tests **in under 10 minutes**. If your project takes longer, add tooling to fix that.
 
-Copy the template from [templates/CONTRIBUTING.md](./templates/CONTRIBUTING.md).
+Copy the template from [templates/CONTRIBUTING.md](../assets/templates/CONTRIBUTING.md).
 
 ### The 10-Minute Rule
 

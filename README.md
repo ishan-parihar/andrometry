@@ -1,14 +1,6 @@
 <!-- T2I HERO SPEC — Subject: a personal context engine — a phone (Android) on the left emitting a stream of life signals (app usage, screen state, calendar, location, health, notifications) into a local-first relay server (center), which serves structured context snapshots to an AI agent on the right. Composition: left-to-right signal pipeline; confident, warm minimalism; measurement/regression motif (confidence bars, timestamps). Palette: deep indigo #1e1b4b → electric teal #2dd4bf accent → warm amber #f59e0b for agent intervention. Style: flat vector, dark UI, glowing data flows, no text. 16:9. -->
 
-![Kotlin](https://img.shields.io/badge/Kotlin-2021-orange?logo=kotlin)
-![LOC](https://img.shields.io/badge/LOC-26.1K-informational?style=flat-square)
 [![CI](https://github.com/ishan-parihar/andrometry/actions/workflows/ci.yml/badge.svg)](https://github.com/ishan-parihar/andrometry/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.22-00ADD9?logo=go)
-![MCP](https://img.shields.io/badge/MCP-Server-orange?logo=modelcontextprotocol)
-![SQLite](https://img.shields.io/badge/SQLite-ACID-003B57?logo=sqlite)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Tests](https://img.shields.io/badge/tests-152%20passing-brightgreen)
-![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 
 
 <p align="center">
@@ -142,6 +134,42 @@ node generate.js --token=dev-token-123 --relay=http://localhost:8420 --date=2026
 
 ```bash
 # Current context
+## Contents
+
+- [Why Andrometry](#why-andrometry)
+- [How it compares](#how-it-compares)
+- [What It Tracks](#what-it-tracks)
+- [Quick Start](#quick-start)
+  - [Prerequisites](#prerequisites)
+  - [1. Start the Relay Server](#1-start-the-relay-server)
+  - [2. Generate Synthetic Data](#2-generate-synthetic-data)
+  - [3. Query Context (as an AI agent)](#3-query-context-as-an-ai-agent)
+  - [4. Build the Android APK](#4-build-the-android-apk)
+  - [5. Run MCP Server (for AI agents)](#5-run-mcp-server-for-ai-agents)
+- [Architecture](#architecture)
+  - [Design Principles](#design-principles)
+  - [Project Structure](#project-structure)
+- [API Reference](#api-reference)
+  - [Authentication](#authentication)
+  - [Endpoints](#endpoints)
+  - [Agent Query Ladder](#agent-query-ladder)
+- [MCP Tools](#mcp-tools)
+- [Classification System](#classification-system)
+  - [How Activity Classification Works](#how-activity-classification-works)
+  - [Temporal Hysteresis](#temporal-hysteresis)
+  - [Server-Configurable Alignment](#server-configurable-alignment)
+- [Deployment](#deployment)
+  - [Server](#server)
+  - [Android APK](#android-apk)
+  - [MCP Server](#mcp-server)
+- [Testing](#testing)
+- [Configuration](#configuration)
+  - [Server (server/config.toml)](#server-serverconfigtoml)
+  - [Android](#android)
+- [Documentation](#documentation)
+- [License](#license)
+- [☕ Support & Sponsorship](#support-sponsorship)
+
 curl -H "Authorization: Bearer agent-dev-token-123" \
   http://localhost:8420/v1/context/current
 
