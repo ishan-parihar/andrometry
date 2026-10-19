@@ -433,6 +433,10 @@ Configure in the app or via server preferences:
 
 ---
 
+## Documentation
+
+Every doc in `docs/` is listed with the question it answers in [docs/PAGE-INDEX.md](docs/PAGE-INDEX.md).
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE). Personal project, open for reference and contribution.
